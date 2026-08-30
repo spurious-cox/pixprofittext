@@ -34,7 +34,15 @@ setup(
         # then be neither signed nor un-signed.
         "strip": False,
         "iconfile": "icon/PixProFitText.icns",
-        "includes": ["fittext_engine", "pixbridge", "numpy", "PIL"],
+        # PIL goes in PACKAGES, not includes. An "include" is compiled
+        # into Contents/Resources/lib/python314.zip, and codesign
+        # cannot reach inside a zip — so Pillow's 18 bundled dylibs
+        # (libbrotli, libfreetype, libjpeg, libwebp, ...) shipped
+        # UNSIGNED and Apple rejected the whole archive. A "package"
+        # is copied out as a real directory tree, where build.sh's
+        # Mach-O walk finds and signs every one of them.
+        "includes": ["fittext_engine", "pixbridge", "numpy"],
+        "packages": ["PIL"],
         "excludes": ["tkinter", "test", "unittest"],
         "plist": {
             "CFBundleName": "PixProFitText",
