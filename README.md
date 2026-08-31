@@ -6,6 +6,11 @@ size that stays inside the outline.
 Select a shape layer, type or paste the text, press **Try** to see it, press
 **Apply** to put it on the canvas as an ordinary editable text layer.
 
+### [⬇︎ Download the latest release](https://github.com/spurious-cox/pixprofittext/releases/latest)
+
+Notarized and stapled by Apple — open the DMG and drag PixProFitText to
+Applications. Requires Pixelmator Pro.
+
 ![text fitted to a pentagon, with the app beside it](docs/screenshot.png)
 
 ## What it does
