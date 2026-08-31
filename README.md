@@ -98,8 +98,19 @@ skips the `.so` files under `Resources/lib` and the extension-less Mach-O at
 `Contents/MacOS/python`, which is exactly what notarization rejects. The script
 walks the bundle and signs anything `file` reports as Mach-O.
 
-There is no `release.sh` yet: the app is signed but **not notarized**, and no
-DMG is produced. That is fine locally and would be blocked on another Mac.
+    ./release.sh            notarize, staple, and wrap it in a DMG
+
+`build.sh` signs but does not notarize; `release.sh` does both the app and
+the DMG, and staples each. Stapling the app matters because that is what gets
+dragged out of the DMG, and stapling the DMG matters because that is what
+gets downloaded — notarizing only one leaves a Gatekeeper warning on the
+other. No password is typed: it uses the `PixProNotary` keychain profile.
+
+**Pillow must be a `package`, not an `include`.** py2app compiles an
+`include` into `Contents/Resources/lib/python314.zip`, and `codesign` cannot
+reach inside a zip — so Pillow's 18 bundled dylibs shipped unsigned and Apple
+rejected the whole archive. As a `package` it is copied out as a real
+directory tree where the Mach-O walk signs every one of them.
 
 ## Files
 
@@ -107,6 +118,7 @@ DMG is produced. That is fine locally and would be blocked on another Mac.
     fittext_engine.py    the geometry — masks, flow, placement. No Pixelmator.
     pixbridge.py         every line of AppleScript that talks to Pixelmator
     build.sh             build, sign, install
+    release.sh           notarize, staple, and build the DMG
     make_icon.py         builds the icns from icon/
     setup.py             py2app configuration
 
