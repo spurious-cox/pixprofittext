@@ -1,5 +1,9 @@
 #!/bin/zsh
-# Notarize PixProFitText.app and wrap it in a distributable DMG — v1.0.0
+# Notarize PixProFitText.app and wrap it in a distributable DMG — v1.1.0
+#
+# v1.1.0 also puts a "READ ME FIRST.txt" in the DMG and rewrites the Homebrew
+# cask's version and sha256, so brew never serves a DMG the cask no longer
+# describes.
 #
 # Run ./build.sh first; this takes dist/PixProFitText.app as it finds it.
 #
@@ -44,6 +48,41 @@ rm -rf dist/dmg "$DMG"
 mkdir -p dist/dmg
 cp -R "$APP" dist/dmg/
 ln -s /Applications dist/dmg/Applications
+cat > "dist/dmg/READ ME FIRST.txt" <<READMEEOF
+PixProFitText $VERSION
+
+WHAT IT IS
+    Fits a block of text inside an irregular Pixelmator Pro shape, at the
+    largest size that stays inside the outline.
+
+INSTALLING
+    Drag PixProFitText onto the Applications folder beside it.
+
+UPDATING
+    Quit PixProFitText first if it is running. Unlike Stache it has no login
+    agent, so nothing restarts it - but replacing a running app is still
+    unreliable.
+
+IT NEEDS PIXELMATOR PRO
+    The app does nothing on its own: it drives Pixelmator Pro. The first
+    time you use it, macOS asks whether to allow it to control Pixelmator
+    Pro, and it cannot work until that is allowed.
+
+    Both Pixelmator Pro 3.x and the Creator Studio build are supported; it
+    binds to whichever one has a document open.
+
+USING IT
+    Select a shape layer in Pixelmator, type or paste your text, press Try
+    to see it, press Apply to place it. The Info button explains what the
+    app calculates and what it leaves to you - line height in particular,
+    which no script can set and which is the intended finishing touch.
+
+HOMEBREW
+    brew install --cask spurious-cox/tap/pixprofittext
+
+https://github.com/spurious-cox/pixprofittext
+(c) 2026 Tim McCoy
+READMEEOF
 # hdiutil intermittently returns "Resource busy" on a folder written seconds
 # earlier — something (Spotlight, on-access AV) still has it open. It clears
 # on its own, so retry rather than abandoning a build whose app is already
@@ -73,6 +112,27 @@ sleep 1
 rm -rf /Applications/PixProFitText.app
 cp -R "$APP" /Applications/
 xattr -dr com.apple.quarantine /Applications/PixProFitText.app 2>/dev/null || true
+
+echo "==> updating the Homebrew cask"
+TAP="$(brew --repository 2>/dev/null)/Library/Taps/spurious-cox/homebrew-tap"
+CASK="$TAP/Casks/pixprofittext.rb"
+if [[ -f "$CASK" ]]; then
+    SHA=$(shasum -a 256 "$DMG" | cut -d" " -f1)
+    # Only the two lines that change per release; rewriting the file from a
+    # template would lose the caveats and the zap list.
+    /usr/bin/sed -i "" \
+        -e "s/^  version \".*\"/  version \"$VERSION\"/" \
+        -e "s/^  sha256 \".*\"/  sha256 \"$SHA\"/" "$CASK"
+    echo "    $CASK -> $VERSION"
+    echo "    sha256 $SHA"
+    if brew style --cask "$CASK" >/dev/null 2>&1; then
+        echo "    style: ok — commit and push the tap to publish it"
+    else
+        echo "    style: FAILED — check $CASK by hand" >&2
+    fi
+else
+    echo "    no cask at $CASK — skipped"
+fi
 
 echo "==> results"
 echo "    dmg:      $DMG  ($(du -h "$DMG" | cut -f1))"
