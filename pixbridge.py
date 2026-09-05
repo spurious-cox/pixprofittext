@@ -480,7 +480,8 @@ def apply_fit(bundle_id, shape, fit, text, font_name, angle, mask_path,
         if escaped == 0 and drift == 0:
             box = _tighten_box(bundle_id, engine, shape, payload, font_name,
                                size, angle, position, color, name, align_now,
-                               box, sent_lines, mask_path)
+                               box, sent_lines, mask_path,
+                               floor=mask_w + 2 * SIDE_SLACK)
             return size, 0, attempt, 0, box
         if ys.size == 0:
             break
@@ -562,7 +563,8 @@ def apply_fit(bundle_id, shape, fit, text, font_name, angle, mask_path,
 
 
 def _tighten_box(bundle_id, engine, shape, payload, font_name, size, angle,
-                 position, color, name, align, box, sent_lines, mask_path):
+                 position, color, name, align, box, sent_lines, mask_path,
+                 floor=0):
     """Shrink the settled layer's box to something near its own text.
 
     _box_for deliberately asks for a box MUCH wider than the longest line,
@@ -584,7 +586,7 @@ def _tighten_box(bundle_id, engine, shape, payload, font_name, size, angle,
     best = box
     for fraction in (0.55, 0.40, 0.30):
         trial = int(box * fraction)
-        if trial < 40 or trial >= best:
+        if trial < max(40, floor) or trial >= best:
             continue
         delete_layer(bundle_id, name)
         add_text_layer(bundle_id, payload, font_name, size, angle, position,
@@ -617,7 +619,7 @@ def _box_for(engine, lines, text, font_name, size, calibration,
     # hold all 449 characters on one line — 1923 units for a 207-unit arch,
     # and the layer drew as a single line, or as nothing at all.
     if not lines and laid_width:
-        return int(laid_width + 8)
+        return int(laid_width + 2 * SIDE_SLACK)
     candidates = lines or text.split("\n")
     widest = 0
     for line in candidates:
@@ -678,6 +680,13 @@ def _refit(engine, shape, text, font_name, angle, padding, size,
 WIDTH_PROBE = "Hamburgefonstiv and the quick brown fox jumps over it"
 SPACING_PROBE = "\n".join([WIDTH_PROBE] * 3)
 PROBE_LAYER = "PixProFitText calibration"
+
+# Breathing room either side of the text inside its own layer box. A box cut
+# tight to the ink leaves nothing to grab and nothing to nudge, so every
+# tweak afterwards means dragging the layer itself. The position already
+# takes the extra width back out for centred and right-aligned text, so the
+# ink stays where the fit put it.
+SIDE_SLACK = 16
 
 
 def calibrate(bundle_id, text, font_name, mask_path, reference=100.0):
