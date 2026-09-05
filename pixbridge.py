@@ -416,7 +416,8 @@ def apply_fit(bundle_id, shape, fit, text, font_name, angle, mask_path,
         # width is no good here: a flowed layout is composed on a canvas the
         # size of the whole document, so it reported 2137px for a 459px
         # shape.
-        box = _box_for(engine, lines, text, font_name, size, calibration)
+        box = _box_for(engine, lines, text, font_name, size, calibration,
+                       laid_width=getattr(placement.rendered, "box_w", None))
         # The position names where the INK should go, but it sets the box's
         # left edge — and the ink sits centred inside a box deliberately
         # much wider than the line. Without taking that back out, widening
@@ -589,8 +590,16 @@ def _tighten_box(bundle_id, engine, shape, payload, font_name, size, angle,
     return best
 
 
-def _box_for(engine, lines, text, font_name, size, calibration):
+def _box_for(engine, lines, text, font_name, size, calibration,
+             laid_width=None):
     """How wide the text layer must be to hold its longest line unbroken."""
+    # With no explicit line breaks the text was wrapped by AppKit inside
+    # the fit, to a width the fit already knows: box_w. Measuring the whole
+    # unbroken paragraph instead asked Pixelmator for a box wide enough to
+    # hold all 449 characters on one line — 1923 units for a 207-unit arch,
+    # and the layer drew as a single line, or as nothing at all.
+    if not lines and laid_width:
+        return int(laid_width + 8)
     candidates = lines or text.split("\n")
     widest = 0
     for line in candidates:
