@@ -398,6 +398,18 @@ def apply_fit(bundle_id, shape, fit, text, font_name, angle, mask_path,
     escaped = 0
     lost = 0
     nudges = 0
+    # Keep the best pass, and notice when shrinking stops helping.
+    #
+    # Pixelmator's width overshoot GROWS as the type shrinks — measured 1.03
+    # at 17pt and 1.42 at 6pt on the flag, per-glyph advances rounding to
+    # whole pixels being proportionally far larger down there. The loop read
+    # overshoot and answered by shrinking, which made the next overshoot
+    # worse, which made it shrink again: a fit predicted at 19.2pt walked
+    # 18, 17, 16, 14, 12, 10, 8, 6 and ended with the SAME 15px outside that
+    # pass 2 had at 17pt. The best pass has to be remembered and returned to.
+    best = None
+    prev_escaped = None
+    stalled = 0
     corrected = False
 
     for attempt in range(1, VERIFY_STEPS + 1):
@@ -477,6 +489,8 @@ def apply_fit(bundle_id, shape, fit, text, font_name, angle, mask_path,
         # re-wrap through as a success with 43px hanging outside the shape.
         drift = drawn_lines - sent_lines
         lost = -drift if drift < 0 else 0
+        if drift == 0 and (best is None or escaped < best[0]):
+            best = (escaped, size, placement, position, box)
         if escaped == 0 and drift == 0:
             box = _tighten_box(bundle_id, engine, shape, payload, font_name,
                                size, angle, position, color, name, align_now,
@@ -524,6 +538,16 @@ def apply_fit(bundle_id, shape, fit, text, font_name, angle, mask_path,
                     nudges = 0
                     continue
 
+        # Shrinking that is not reducing the escape is the runaway, not a
+        # correction. Two passes without improvement and the loop stops.
+        if prev_escaped is not None and escaped >= prev_escaped:
+            stalled += 1
+        else:
+            stalled = 0
+        prev_escaped = escaped
+        if stalled >= 2:
+            break
+
         overshoot = max(drawn_w / max(mask_w, 1), drawn_h / max(mask_h, 1))
         if nudges >= 2:
             overshoot = max(overshoot, 1.03)
@@ -559,6 +583,24 @@ def apply_fit(bundle_id, shape, fit, text, font_name, angle, mask_path,
                 nudges += 1
         if size < 6:
             break
+
+    # Go back to the pass that came closest, rather than returning whatever
+    # the last one happened to be.
+    if best is not None and best[0] < escaped:
+        escaped, size, placement, position, box = best
+        lines = getattr(placement, "lines", None)
+        delete_layer(bundle_id, name)
+        add_text_layer(bundle_id,
+                       "\n".join(lines) if lines else text, font_name, size,
+                       angle, position, color=color, name=name,
+                       align=getattr(placement, "align", "center") if lines
+                       else None,
+                       box_width=box)
+    if escaped == 0:
+        box = _tighten_box(bundle_id, engine, shape, payload, font_name, size,
+                           angle, position, color, name, align_now, box,
+                           sent_lines, mask_path,
+                           floor=mask_w + 2 * SIDE_SLACK)
     return size, escaped, VERIFY_STEPS, (lost or drift), box
 
 
