@@ -427,7 +427,7 @@ and both the flowed and the plain path agree on it to within 0.3pt. The
 shape was too small for the text all along.
 """
 
-APP_VERSION = "2.8.1"
+APP_VERSION = "2.9.0"
 COPYRIGHT = "© 2026 Tim McCoy"
 
 import os
@@ -1301,7 +1301,7 @@ class Controller(NSObject):
             # Its own layer, named for the shape, so previous fits survive.
             layer_name = bridge.unique_layer_name(
                 self.bundle, "Text in %s" % (self.shape_layer or "shape"))
-            size, escaped, tries, lost = bridge.apply_fit(
+            size, escaped, tries, lost, box = bridge.apply_fit(
                 self.bundle, self.shape, self.fit, payload, font, angle,
                 scratch("verify.png"), padding=padding,
                 calibration=self.calibration, color=colour,
@@ -1317,7 +1317,8 @@ class Controller(NSObject):
                          % (n, sz, box, pos[0], pos[1], dw, dh, mw, mh,
                             dl, sl, esc)))
             note("APPLY done: %d pt, %d pass(es), escaping %d, lost %d, "
-                 "layer %r" % (size, tries, escaped, lost, layer_name))
+                 "box %d, layer %r"
+                 % (size, tries, escaped, lost, box, layer_name))
             note("APPLY predicted %.1f pt -> settled %d pt" % (self.fit.size, size))
             if lost:
                 # Silence here is the worst outcome: the layer looks tidy

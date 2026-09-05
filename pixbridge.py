@@ -299,7 +299,7 @@ def apply_fit(bundle_id, shape, fit, text, font_name, angle, mask_path,
     So the offset is measured from the drawn ink and applied as a nudge, and
     the size is only reduced when the ink is genuinely too big.
 
-    Returns (size_used, escaped_pixels, attempts, lines_lost).
+    Returns (size_used, escaped_pixels, attempts, lines_lost, box_width).
     """
     import numpy as np
     import fittext_engine as engine
@@ -375,7 +375,10 @@ def apply_fit(bundle_id, shape, fit, text, font_name, angle, mask_path,
                      mask_w, mask_h, drawn_lines, sent_lines, escaped)
         lost = max(0, sent_lines - drawn_lines)
         if escaped == 0 and not lost:
-            return size, 0, attempt, 0
+            box = _tighten_box(bundle_id, engine, shape, payload, font_name,
+                               size, angle, position, color, name, align_now,
+                               box, sent_lines, mask_path)
+            return size, 0, attempt, 0, box
         if ys.size == 0:
             break
 
@@ -443,7 +446,54 @@ def apply_fit(bundle_id, shape, fit, text, font_name, angle, mask_path,
                 nudges += 1
         if size < 6:
             break
-    return size, escaped, VERIFY_STEPS, lost
+    return size, escaped, VERIFY_STEPS, lost, box
+
+
+def _tighten_box(bundle_id, engine, shape, payload, font_name, size, angle,
+                 position, color, name, align, box, sent_lines, mask_path):
+    """Shrink the settled layer's box to something near its own text.
+
+    _box_for deliberately asks for a box MUCH wider than the longest line,
+    so that Pixelmator cannot re-wrap the lines the fit chose. That is the
+    right thing to do while the size is still moving. What it leaves behind
+    is a finished layer whose box is several times the width of the shape —
+    413 units of box around 175 units of text on a 207-unit arch — so the
+    ink sits centred in something far wider than the artwork and has to be
+    dragged back over the shape by hand every time.
+
+    The width is found by trying, not by formula: the relationship between
+    the box we ask for and what Pixelmator does with it has already caught
+    this code out twice. Each candidate is drawn and re-measured, and a
+    candidate is only accepted if the line count and the escape count are
+    both still what they were. Anything else keeps the wide box, which is
+    known to work.
+    """
+    import numpy as np
+    best = box
+    for fraction in (0.55, 0.40, 0.30):
+        trial = int(box * fraction)
+        if trial < 40 or trial >= best:
+            continue
+        delete_layer(bundle_id, name)
+        add_text_layer(bundle_id, payload, font_name, size, angle, position,
+                       color=color, name=name, align=align, box_width=trial)
+        export_layer_mask(bundle_id, name, mask_path)
+        drawn = engine.load_shape(mask_path, fill_interior=False)
+        if not drawn.any():
+            break
+        rows = drawn.any(axis=1).astype(np.int8)
+        drawn_lines = int(np.clip(np.diff(np.concatenate(
+            ([0], rows, [0]))), 0, None).sum())
+        escaped = int((drawn & ~shape).sum())
+        if drawn_lines == sent_lines and escaped == 0:
+            best = trial
+        else:
+            break                       # narrower will only be worse
+    if best != box:
+        delete_layer(bundle_id, name)
+        add_text_layer(bundle_id, payload, font_name, size, angle, position,
+                       color=color, name=name, align=align, box_width=best)
+    return best
 
 
 def _box_for(engine, lines, text, font_name, size, calibration):
