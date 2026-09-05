@@ -427,7 +427,7 @@ and both the flowed and the plain path agree on it to within 0.3pt. The
 shape was too small for the text all along.
 """
 
-APP_VERSION = "3.0.0"
+APP_VERSION = "3.1.0"
 COPYRIGHT = "© 2026 Tim McCoy"
 
 import os
@@ -978,7 +978,8 @@ class Controller(NSObject):
         self.shape_label.setTextColor_(NSColor.secondaryLabelColor())
         panel.addSubview_(self.shape_label)
 
-        refresh = FirstMouseButton.alloc().initWithFrame_(NSMakeRect(360, 16, 126, 30))
+        self.reread_button = refresh = FirstMouseButton.alloc().initWithFrame_(
+            NSMakeRect(360, 16, 126, 30))
         refresh.setTitle_("Reread shape")
         refresh.setBezelStyle_(1)
         refresh.setTarget_(self)
@@ -989,7 +990,6 @@ class Controller(NSObject):
             NSMakeRect(626, 16, 122, 30))
         self.apply_button.setTitle_("Apply")
         self.apply_button.setBezelStyle_(1)
-        self.apply_button.setKeyEquivalent_("\r")
         self.apply_button.setTarget_(self)
         self.apply_button.setAction_("apply:")
         panel.addSubview_(self.apply_button)
@@ -1196,6 +1196,31 @@ class Controller(NSObject):
     def applicationShouldTerminateAfterLastWindowClosed_(self, app):
         return True
 
+    def guide(self):
+        """Make the next step the default button, and only that one.
+
+        Three buttons in a row with no indication of order is a guessing
+        game, and the order changes: a shape has to be read before a fit
+        can be tried, and a fit tried before it can be applied. Whichever
+        is next gets Return and the blue, the others give it up. Once a fit
+        has been applied nothing is highlighted, because there is nothing
+        the app is waiting for.
+
+        Reread is only ever offered when there is no shape at all. It runs
+        by itself often enough that highlighting it the rest of the time
+        would be pointing at a job already done.
+        """
+        if self.shape is None:
+            nxt = self.reread_button
+        elif self.fit is None:
+            nxt = self.try_button
+        elif not self.applied:
+            nxt = self.apply_button
+        else:
+            nxt = None
+        for button in (self.reread_button, self.try_button, self.apply_button):
+            button.setKeyEquivalent_("\r" if button is nxt else "")
+
     def markStale_(self, sender):
         """Something changed; the preview is out of date but nothing is
         recomputed until Try is pressed. Fitting takes a second or two, and
@@ -1274,6 +1299,11 @@ class Controller(NSObject):
 
     def _draw(self):
         """Shape in grey, the fitted text over it, anything outside in red."""
+        # Every state change ends here, so this is where the guidance is
+        # kept honest. Guarded because _draw can run before the panel has
+        # finished building itself.
+        if getattr(self, "apply_button", None) is not None:
+            self.guide()
         if self.shape is None:
             self.preview.setImage_(None)
             return

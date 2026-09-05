@@ -819,5 +819,11 @@ def calibrate(bundle_id, text, font_name, mask_path, reference=100.0):
     # ~79px for Helvetica Neue; as a ratio the same thing reads 1.04 at 72pt
     # and 1.53 at 6pt, and a ratio fitted at the probe size is then wrong
     # everywhere else.
-    offset = float(one[0] - one[2])
+    #
+    # And it must come out of the RAW pixels. Every measurement above is
+    # normalised to a 100pt reference, which cancels out of a ratio and does
+    # not cancel out of a difference: 79px measured at the 72pt probe was
+    # stored as 79 * 100/72 = 109.7, and the fit was that much too cautious
+    # — 12.2pt where the shape could hold more.
+    offset = float(one[0] - one[2]) * probe_size / reference
     return engine.Calibration(offset, factor, text, font_name)
