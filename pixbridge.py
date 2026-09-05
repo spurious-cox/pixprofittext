@@ -156,11 +156,16 @@ def restore_visibility(bundle_id):
 
 def _snapshot_visibility(bundle_id):
     """Record what is on and what is off, on disk, before hiding anything."""
+    # AppleScript has no inline if/then/else EXPRESSION — `if` is a
+    # statement, and writing one inside a value threw
+    # "Expected expression, ")", etc. but found \"if\"", which broke the
+    # shape read on startup.
     body = ('set d to front document\n'
             'set out to ""\n'
             'repeat with L in layers of d\n'
-            '  set out to out & (id of L as text) & tab & '
-            '(if visible of L then "1" else "0") & linefeed\n'
+            '  set v to "0"\n'
+            '  if visible of L then set v to "1"\n'
+            '  set out to out & (id of L as text) & tab & v & linefeed\n'
             'end repeat\n'
             'return out')
     rows = run(_tell(bundle_id, body))
