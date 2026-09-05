@@ -308,6 +308,44 @@ def load_shape(path, fill_interior=True):
     return fill_holes(shape) if fill_interior else shape
 
 
+def fill_edge_notches(shape, min_depth):
+    """Close a deep notch cut into the TOP or BOTTOM edge of a shape.
+
+    An arch with a bite out of its base has, in the notched columns, ink
+    that stops short of the shape's own bottom. The flow then has to squeeze
+    its last lines into the strip above the bite, and the legs either side
+    go unused because text cannot read down one and up the other.
+
+    Told to ignore it, the notch is filled to the shape's extent and the
+    lines run straight across. Text will sit over the notch: that is what
+    was asked for, and tidying it afterwards is the user's business.
+
+    Only notches that break the top or bottom edge. A notch in a SIDE — the
+    swallowtail of a flag — is a different shape of problem, and filling it
+    would swallow the tail entirely.
+
+    `min_depth` is in rows: shallower than this and the flow can lay a
+    usable line beside the notch already, so nothing is gained by filling.
+    """
+    if not shape.any():
+        return shape
+    rows = np.nonzero(shape.any(axis=1))[0]
+    top, bottom = int(rows.min()), int(rows.max())
+    out = shape.copy()
+    for x in range(shape.shape[1]):
+        column = np.nonzero(shape[:, x])[0]
+        if column.size == 0:
+            continue
+        hi, lo = int(column.min()), int(column.max())
+        # A column that stops short of the shape's bottom, by more than a
+        # line, is a bottom notch; short of the top, a top notch.
+        if bottom - lo >= min_depth:
+            out[lo:bottom + 1, x] = True
+        if hi - top >= min_depth:
+            out[top:hi + 1, x] = True
+    return out
+
+
 def fill_holes(shape):
     """Everything enclosed by the outline counts as inside.
 

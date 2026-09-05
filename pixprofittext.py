@@ -427,7 +427,7 @@ and both the flowed and the plain path agree on it to within 0.3pt. The
 shape was too small for the text all along.
 """
 
-APP_VERSION = "3.1.1"
+APP_VERSION = "3.2.0"
 COPYRIGHT = "© 2026 Tim McCoy"
 
 import os
@@ -569,7 +569,10 @@ INFO_BODY = (
     "a long line can drop into a notch or over an edge. If that happens, "
     "undo the spacing and either shorten the text or enlarge the shape, "
     "then fit again.\n"
-    "    \u2022  Make text fit a shape too small to hold it.\n\n"
+    "    \u2022  Make text fit a shape too small to hold it.\n"
+    "    \u2022  Tidy up after Ignore Notch. It places the text across the "
+    "notch on purpose; what to do about the words that land there is a "
+    "judgement, and yours.\n\n"
 
     "WHEN IT SAYS IT WILL NOT FIT\n"
     "That is arithmetic rather than a failure. Below about 6pt the text "
@@ -577,11 +580,23 @@ INFO_BODY = (
     "text needs roughly half again as much shape \u2014 enlarging the shape "
     "is usually a better answer than shrinking the type.\n\n"
 
-    "FOLLOW THE SHAPE\n"
+    "FOLLOW SHAPE\n"
     "Ticked, the lines are broken to the outline, short where the shape is "
     "narrow and long where it is wide. Unticked, your own line breaks are "
     "honoured, and text that has none is wrapped to a block that fits "
     "inside the shape.\n\n"
+
+    "IGNORE NOTCH\n"
+    "A deep bite out of the TOP or BOTTOM edge — the arch standing on two "
+    "legs — costs more than it looks. The lines above it are squeezed into "
+    "the strip that clears it, and the legs either side stay empty, because "
+    "text cannot read down one and up the other. Ticked, the notch is "
+    "treated as though it were filled in and the lines run straight across "
+    "it.\n"
+    "Text will then sit over the notch. That is what was asked for, and "
+    "tidying it is left to you \u2014 delete a word, move a line, or edit "
+    "the passage. Notches in the SIDES are never ignored: a swallowtail is "
+    "a different problem, and filling it would swallow the tail.\n\n"
 
     "If a placement loses lines, or leaves ink outside the shape, we say so "
     "instead of placing it quietly. A layer that looks tidy and is missing "
@@ -761,6 +776,7 @@ def save_settings(controller):
         "angle": "%.2f" % controller.angle(),
         "wrap": "1" if controller.wrapping() else "0",
         "align": controller.alignment() or "",
+        "notch": "1" if controller.ignoring_notch() else "0",
         "color": "%d,%d,%d" % rgb,
         "text": controller.text(),
     }, SETTINGS_KEY)
@@ -897,23 +913,37 @@ class Controller(NSObject):
         panel.addSubview_(_label("°", 636, 112, 14))
 
         self.wrap_box = FirstMouseButton.alloc().initWithFrame_(
-            NSMakeRect(356, 46, 220, 20))
+            NSMakeRect(356, 46, 116, 20))
         self.wrap_box.setButtonType_(3)                    # switch
-        self.wrap_box.setTitle_("Follow the shape")
+        self.wrap_box.setTitle_("Follow shape")
         self.wrap_box.setState_(0 if saved.get("wrap") == "0" else 1)
         self.wrap_box.setTarget_(self)
         self.wrap_box.setAction_("markStale:")
         panel.addSubview_(self.wrap_box)
 
+        self.notch_box = FirstMouseButton.alloc().initWithFrame_(
+            NSMakeRect(478, 46, 118, 20))
+        self.notch_box.setButtonType_(3)                   # switch
+        self.notch_box.setTitle_("Ignore Notch")
+        self.notch_box.setToolTip_(
+            "Treat a deep notch in the top or bottom edge as if it were not "
+            "there, so lines run straight across it. Text will sit over the "
+            "notch — that is the point — and tidying it is left to you. "
+            "Notches in the sides are never ignored.")
+        self.notch_box.setState_(1 if saved.get("notch") == "1" else 0)
+        self.notch_box.setTarget_(self)
+        self.notch_box.setAction_("markStale:")
+        panel.addSubview_(self.notch_box)
+
         align_tip = ("Auto reads the justification off the shape — a straight "
                      "edge on one side means the text lines up with it. "
                      "Override it when Auto reads the shape differently than "
                      "you do.")
-        align_label = _label("Align", 590, 46, 42)
+        align_label = _label("Align", 616, 46, 42)
         align_label.setToolTip_(align_tip)
         panel.addSubview_(align_label)
         self.align_menu = NSPopUpButton.alloc().initWithFrame_pullsDown_(
-            NSMakeRect(636, 42, 112, 26), False)
+            NSMakeRect(660, 42, 88, 26), False)
         self.align_menu.addItemsWithTitles_([n for n, _ in ALIGN_CHOICES])
         saved_align = saved.get("align") or ""
         for i, (_name, value) in enumerate(ALIGN_CHOICES):
@@ -1221,6 +1251,9 @@ class Controller(NSObject):
         for button in (self.reread_button, self.try_button, self.apply_button):
             button.setKeyEquivalent_("\r" if button is nxt else "")
 
+    def ignoring_notch(self):
+        return bool(self.notch_box.state())
+
     def markStale_(self, sender):
         """Something changed; the preview is out of date but nothing is
         recomputed until Try is pressed. Fitting takes a second or two, and
@@ -1374,7 +1407,9 @@ class Controller(NSObject):
             layer_name = bridge.unique_layer_name(
                 self.bundle, "Text in %s" % (self.shape_layer or "shape"))
             size, escaped, tries, lost, box = bridge.apply_fit(
-                self.bundle, self.shape, self.fit, payload, font, angle,
+                self.bundle, getattr(self, "fit_shape", None)
+                if getattr(self, "fit_shape", None) is not None else self.shape,
+                self.fit, payload, font, angle,
                 scratch("verify.png"), padding=padding,
                 calibration=self.calibration, color=colour,
                 name=layer_name,
@@ -1446,6 +1481,19 @@ def compute_fit(controller, text, font, angle):
     A module function, not a method: PyObjC maps every method to a selector,
     and one taking arguments without trailing underscores is rejected.
     """
+    # Ignore Notch fills a deep bite in the top or bottom edge before
+    # anything is measured, so the flow sees a solid shape and runs its
+    # lines across. The threshold is geometric rather than typographic: a
+    # notch worth ignoring is far deeper than a line, and testing against
+    # the line height would mean fitting once to learn the size and again
+    # to use it. Four percent of the shape's height, never less than six
+    # rows.
+    shape = controller.shape
+    if controller.ignoring_notch():
+        rows = shape.shape[0]
+        shape = engine.fill_edge_notches(shape, max(6, int(rows * 0.04)))
+    controller.fit_shape = shape
+
     if not controller.wrapping():
         # Unticked means "honour the line breaks I typed" — but a passage
         # pasted in as one paragraph has none, and fit_text without wrap
@@ -1458,7 +1506,7 @@ def compute_fit(controller, text, font, angle):
         # model said 78 tall where Pixelmator drew 113, 45% more, and the
         # text ran out of the shape by 178px at a size the fit called good.
         ensure_calibration(controller, text, font)
-        return engine.fit_text(controller.shape, text, font, angle=angle,
+        return engine.fit_text(shape, text, font, angle=angle,
                                padding=controller.padding(),
                                calibration=controller.calibration,
                                wrap=not own_breaks,
@@ -1469,14 +1517,14 @@ def compute_fit(controller, text, font, angle):
     # improve on — measured against both shapes it cost the flag 9.5pt ->
     # 8.2pt and the diamond 15.8pt -> 13.7pt. The flow's job is to choose
     # good BREAKS; the calibrated block fit decides the size.
-    flowed = engine.fit_flowed(controller.shape, text, font, angle=angle,
+    flowed = engine.fit_flowed(shape, text, font, angle=angle,
                                padding=controller.padding(),
                                align=controller.alignment())
     if flowed is None or not flowed.lines:
         return None
     broken = "\n".join(flowed.lines)
     ensure_calibration(controller, broken, font)
-    fit = engine.fit_text(controller.shape, broken, font, angle=angle,
+    fit = engine.fit_text(shape, broken, font, angle=angle,
                           padding=controller.padding(),
                           calibration=controller.calibration,
                           align=flowed.align)
