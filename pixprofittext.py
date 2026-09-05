@@ -427,7 +427,7 @@ and both the flowed and the plain path agree on it to within 0.3pt. The
 shape was too small for the text all along.
 """
 
-APP_VERSION = "2.10.1"
+APP_VERSION = "2.10.2"
 COPYRIGHT = "© 2026 Tim McCoy"
 
 import os
@@ -1205,6 +1205,16 @@ class Controller(NSObject):
             return
         self.fit = compute_fit(self, text, self.font_name(), self.angle())
         if self.fit is None:
+            # Log the failures too. The TRY line used to live only in the
+            # success branch, so three runs in a row that answered "will not
+            # fit" left no trace at all and looked from the log like the
+            # button had never been pressed.
+            note("TRY  shape=%s font=%s angle=%.0f margin=%d follow=%s "
+                 "chars=%d color=%s -> NO FIT, align=%s, cal=%s"
+                 % (self.shape_layer, self.font_name(), self.angle(),
+                    self.padding(), self.wrapping(), len(text),
+                    self.colour(), self.alignment() or "auto",
+                    self.calibration))
             say(self, "Will not fit at this angle, even at 6 pt.", True)
         else:
             tag = "" if self.calibration else "  (preview)"

@@ -168,10 +168,24 @@ def _snapshot_visibility(bundle_id):
             '  set out to out & (id of L as text) & tab & v & linefeed\n'
             'end repeat\n'
             'return out')
+    # Never overwrite a snapshot that is still sitting there: it belongs to
+    # an export that did not finish, and the document is therefore in the
+    # HIDDEN state right now. Capturing that and calling it the good state
+    # would turn the safety net into the thing that hides the artwork.
+    if os.path.exists(SNAPSHOT):
+        return
     rows = run(_tell(bundle_id, body))
     os.makedirs(os.path.dirname(SNAPSHOT), exist_ok=True)
     with open(SNAPSHOT, "w", encoding="utf-8") as fh:
         fh.write(rows)
+
+
+def _clear_snapshot():
+    """The export finished and put everything back; the net is not needed."""
+    try:
+        os.remove(SNAPSHOT)
+    except OSError:
+        pass
 
 
 def export_layer_mask(bundle_id, layer_name, out_path):
@@ -222,7 +236,10 @@ def export_layer_mask(bundle_id, layer_name, out_path):
             'return outcome' % (_escape(layer_name), _escape(out_path)))
     outcome = run(_tell(bundle_id, body))
     if outcome != "ok":
+        # Leave the snapshot in place: the restore inside the script may not
+        # have run, so the net is still needed.
         raise PixmatorError(outcome)
+    _clear_snapshot()
     return out_path
 
 
