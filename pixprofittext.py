@@ -427,7 +427,7 @@ and both the flowed and the plain path agree on it to within 0.3pt. The
 shape was too small for the text all along.
 """
 
-APP_VERSION = "2.8.0"
+APP_VERSION = "2.8.1"
 COPYRIGHT = "© 2026 Tim McCoy"
 
 import os
@@ -483,10 +483,26 @@ def note(message):
         pass
 
 
+class PassthroughLabel(NSTextField):
+    """A label that lets clicks through to whatever is behind it.
+
+    A non-editable NSTextField still hit-tests, and the status line — 560pt
+    wide at y 50 — lies directly over the "Follow the shape" checkbox at
+    y 46..66. It swallowed every click except the 4pt strip along the
+    checkbox's bottom edge, so the box appeared to ignore the mouse at
+    random and could be hit only by luck. Labels display; they should never
+    take a click away from a control.
+    """
+
+    def hitTest_(self, point):
+        return None
+
+
 def _label(text, x, y, width=90):
-    field = NSTextField.alloc().initWithFrame_(NSMakeRect(x, y, width, 18))
+    field = PassthroughLabel.alloc().initWithFrame_(NSMakeRect(x, y, width, 18))
     field.setStringValue_(text)
     field.setEditable_(False)
+    field.setSelectable_(False)
     field.setBordered_(False)
     field.setDrawsBackground_(False)
     field.setFont_(NSFont.systemFontOfSize_(11))
