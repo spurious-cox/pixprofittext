@@ -427,7 +427,7 @@ and both the flowed and the plain path agree on it to within 0.3pt. The
 shape was too small for the text all along.
 """
 
-APP_VERSION = "3.2.0"
+APP_VERSION = "3.2.1"
 COPYRIGHT = "© 2026 Tim McCoy"
 
 import os
@@ -1335,37 +1335,46 @@ class Controller(NSObject):
         self.refit_(None)
 
     def _draw(self):
-        """Shape in grey, the fitted text over it, anything outside in red."""
+        """Shape in grey, the fitted text over it, anything outside in red.
+
+        The shape drawn is the one the fit was made against, so with Ignore
+        Notch on the filled outline is shown. Drawing the true outline
+        instead painted every line crossing the notch red — flagging as an
+        error the exact thing that had been asked for.
+        """
         # Every state change ends here, so this is where the guidance is
         # kept honest. Guarded because _draw can run before the panel has
         # finished building itself.
         if getattr(self, "apply_button", None) is not None:
             self.guide()
-        if self.shape is None:
+        shown = getattr(self, "fit_shape", None)
+        if shown is None:
+            shown = self.shape
+        if shown is None:
             self.preview.setImage_(None)
             return
-        bounds = engine.shape_bounds(self.shape)
+        bounds = engine.shape_bounds(shown)
         if bounds is None:
             self.preview.setImage_(None)
             return
         x0, y0, x1, y1 = bounds
         pad = 12
         x0, y0 = max(0, x0 - pad), max(0, y0 - pad)
-        x1 = min(self.shape.shape[1] - 1, x1 + pad)
-        y1 = min(self.shape.shape[0] - 1, y1 + pad)
+        x1 = min(shown.shape[1] - 1, x1 + pad)
+        y1 = min(shown.shape[0] - 1, y1 + pad)
 
         canvas = np.zeros((y1 - y0 + 1, x1 - x0 + 1, 3), dtype=np.uint8)
         canvas[:, :] = (250, 250, 250)
-        canvas[self.shape[y0:y1 + 1, x0:x1 + 1]] = (208, 208, 212)
+        canvas[shown[y0:y1 + 1, x0:x1 + 1]] = (208, 208, 212)
 
         if self.fit is not None:
-            placed = np.zeros(self.shape.shape, dtype=bool)
+            placed = np.zeros(shown.shape, dtype=bool)
             h, w = self.fit.text_mask.shape
             placed[self.fit.y:self.fit.y + h, self.fit.x:self.fit.x + w] = \
                 self.fit.text_mask
             window = placed[y0:y1 + 1, x0:x1 + 1]
-            inside = window & self.shape[y0:y1 + 1, x0:x1 + 1]
-            outside = window & ~self.shape[y0:y1 + 1, x0:x1 + 1]
+            inside = window & shown[y0:y1 + 1, x0:x1 + 1]
+            outside = window & ~shown[y0:y1 + 1, x0:x1 + 1]
             canvas[inside] = self.colour()
             canvas[outside] = (220, 40, 40)
         self.preview.setImage_(_image_from_array(canvas))
@@ -1491,7 +1500,11 @@ def compute_fit(controller, text, font, angle):
     shape = controller.shape
     if controller.ignoring_notch():
         rows = shape.shape[0]
-        shape = engine.fill_edge_notches(shape, max(6, int(rows * 0.04)))
+        filled = engine.fill_edge_notches(shape, max(6, int(rows * 0.04)))
+        note("NOTCH ignore on: %d px shape, +%d filled (min depth %d rows)"
+             % (int(shape.sum()), int(filled.sum() - shape.sum()),
+                max(6, int(rows * 0.04))))
+        shape = filled
     controller.fit_shape = shape
 
     if not controller.wrapping():
