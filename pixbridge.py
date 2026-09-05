@@ -495,7 +495,7 @@ def apply_fit(bundle_id, shape, fit, text, font_name, angle, mask_path,
             box = _tighten_box(bundle_id, engine, shape, payload, font_name,
                                size, angle, position, color, name, align_now,
                                box, sent_lines, mask_path,
-                               floor=mask_w + 2 * SIDE_SLACK)
+                               floor=mask_w + 2 * SIDE_SLACK, ink_w=drawn_w)
             return size, 0, attempt, 0, box
         if ys.size == 0:
             break
@@ -600,13 +600,13 @@ def apply_fit(bundle_id, shape, fit, text, font_name, angle, mask_path,
         box = _tighten_box(bundle_id, engine, shape, payload, font_name, size,
                            angle, position, color, name, align_now, box,
                            sent_lines, mask_path,
-                           floor=mask_w + 2 * SIDE_SLACK)
+                           floor=mask_w + 2 * SIDE_SLACK, ink_w=drawn_w)
     return size, escaped, VERIFY_STEPS, (lost or drift), box
 
 
 def _tighten_box(bundle_id, engine, shape, payload, font_name, size, angle,
                  position, color, name, align, box, sent_lines, mask_path,
-                 floor=0):
+                 floor=0, ink_w=0):
     """Shrink the settled layer's box to something near its own text.
 
     _box_for deliberately asks for a box MUCH wider than the longest line,
@@ -626,9 +626,13 @@ def _tighten_box(bundle_id, engine, shape, payload, font_name, size, angle,
     """
     import numpy as np
     best = box
-    for fraction in (0.55, 0.40, 0.30):
-        trial = int(box * fraction)
-        if trial < max(40, floor) or trial >= best:
+    # ONE attempt, aimed at the ink we just measured, not three blind
+    # fractions. Every candidate costs a draw and an export, and Apply runs
+    # on the main thread by design — AppKit text layout is not thread-safe —
+    # so each one is a couple of seconds of frozen window. Three of them
+    # turned a five second Apply into fifteen.
+    for trial in (max(int(floor), int(ink_w + 2 * SIDE_SLACK)),):
+        if trial < 40 or trial >= best:
             continue
         delete_layer(bundle_id, name)
         add_text_layer(bundle_id, payload, font_name, size, angle, position,

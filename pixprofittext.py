@@ -427,7 +427,7 @@ and both the flowed and the plain path agree on it to within 0.3pt. The
 shape was too small for the text all along.
 """
 
-APP_VERSION = "3.1.0"
+APP_VERSION = "3.1.1"
 COPYRIGHT = "© 2026 Tim McCoy"
 
 import os
@@ -1252,6 +1252,10 @@ class Controller(NSObject):
             say(self, "Type something to fit.")
             self._draw()
             return
+        # A fresh fit has not been applied, whatever the last one did. Left
+        # set from a previous Apply, this made guide() think there was
+        # nothing left to do, so after Try no button was highlighted at all.
+        self.applied = False
         self.fit = compute_fit(self, text, self.font_name(), self.angle())
         if self.fit is None:
             # Log the failures too. The TRY line used to live only in the
