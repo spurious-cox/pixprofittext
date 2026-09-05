@@ -427,7 +427,7 @@ and both the flowed and the plain path agree on it to within 0.3pt. The
 shape was too small for the text all along.
 """
 
-APP_VERSION = "2.10.3"
+APP_VERSION = "2.11.0"
 COPYRIGHT = "© 2026 Tim McCoy"
 
 import os
@@ -1395,6 +1395,11 @@ def compute_fit(controller, text, font, angle):
         # fit any shape and reports "will not fit, even at 6 pt". Wrap for
         # it in that case; if the text carries its own breaks, respect them.
         own_breaks = len([L for L in text.split("\n") if L.strip()]) > 1
+        # Calibrate here too. ensure_calibration used to be called only on
+        # the flowed path, so this one fitted from AppKit's raw metrics: the
+        # model said 78 tall where Pixelmator drew 113, 45% more, and the
+        # text ran out of the shape by 178px at a size the fit called good.
+        ensure_calibration(controller, text, font)
         return engine.fit_text(controller.shape, text, font, angle=angle,
                                padding=controller.padding(),
                                calibration=controller.calibration,

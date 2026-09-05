@@ -458,7 +458,16 @@ def apply_fit(bundle_id, shape, fit, text, font_name, angle, mask_path,
         rows = actual.any(axis=1).astype(np.int8)
         drawn_lines = int(np.clip(np.diff(np.concatenate(
             ([0], rows, [0]))), 0, None).sum())
-        sent_lines = len(lines) if lines else 1
+        # With no explicit breaks the paragraph is still several lines —
+        # AppKit wrapped it inside the fit. Counting 1 made a correct
+        # ten-line layout read as "lines drawn=10 sent=1, lost 9". Count the
+        # model's own bands instead, the same way the drawn ones are counted.
+        if lines:
+            sent_lines = len(lines)
+        else:
+            mrows = placement.text_mask.any(axis=1).astype(np.int8)
+            sent_lines = int(np.clip(np.diff(np.concatenate(
+                ([0], mrows, [0]))), 0, None).sum()) or 1
         if on_probe:
             on_probe(attempt, size, box, position, drawn_w, drawn_h,
                      mask_w, mask_h, drawn_lines, sent_lines, escaped)
