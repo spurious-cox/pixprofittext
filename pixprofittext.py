@@ -427,7 +427,7 @@ and both the flowed and the plain path agree on it to within 0.3pt. The
 shape was too small for the text all along.
 """
 
-APP_VERSION = "2.9.0"
+APP_VERSION = "2.10.0"
 COPYRIGHT = "© 2026 Tim McCoy"
 
 import os
@@ -1031,6 +1031,10 @@ class Controller(NSObject):
                 say(self, "Select a shape layer, then Reread shape.", True)
                 self._draw()
                 return
+            back = bridge.restore_visibility(self.bundle)
+            if back:
+                note("restored visibility of %d layers left hidden by an "
+                     "interrupted export" % back)
             mask = bridge.export_layer_mask(self.bundle, name,
                                             scratch("shape.png"))
             self.shape = engine.load_shape(mask)
@@ -1320,7 +1324,13 @@ class Controller(NSObject):
                  "box %d, layer %r"
                  % (size, tries, escaped, lost, box, layer_name))
             note("APPLY predicted %.1f pt -> settled %d pt" % (self.fit.size, size))
-            if lost:
+            if lost < 0:
+                post(self, "Placed at %d pt, but Pixelmator re-broke the "
+                           "lines into %d where the fit chose %d — the layout "
+                           "on the layer is not the one that was verified."
+                           % (size, len(self.fit.lines) - lost,
+                              len(self.fit.lines)), True)
+            elif lost:
                 # Silence here is the worst outcome: the layer looks tidy
                 # and is missing words.
                 post(self, "Placed at %d pt, but %d line%s did not fit — the "
@@ -1369,9 +1379,17 @@ def compute_fit(controller, text, font, angle):
     and one taking arguments without trailing underscores is rejected.
     """
     if not controller.wrapping():
+        # Unticked means "honour the line breaks I typed" — but a passage
+        # pasted in as one paragraph has none, and fit_text without wrap
+        # tries to place all 449 characters on a single line, which cannot
+        # fit any shape and reports "will not fit, even at 6 pt". Wrap for
+        # it in that case; if the text carries its own breaks, respect them.
+        own_breaks = len([L for L in text.split("\n") if L.strip()]) > 1
         return engine.fit_text(controller.shape, text, font, angle=angle,
                                padding=controller.padding(),
-                               calibration=controller.calibration)
+                               calibration=controller.calibration,
+                               wrap=not own_breaks,
+                               align=controller.alignment())
     # The flow plans at a deliberately TIGHT line spacing, not the measured
     # one. Planning at the real 1.44 fits fewer lines, so the flow settles
     # on a smaller size and hands the block fit line breaks it cannot

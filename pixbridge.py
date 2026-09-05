@@ -15,6 +15,7 @@ holding a document wins.
 Created by: Claude (Anthropic) for Tim McCoy
 """
 
+import os
 import subprocess
 
 BUNDLE_IDS = ("com.apple.pixelmator",                 # Creator Studio 4.x
@@ -112,6 +113,62 @@ def selected_layer_description(bundle_id):
     return name, kind
 
 
+SNAPSHOT = os.path.expanduser(
+    "~/Library/Application Support/PixProFitText/layer_visibility.txt")
+
+
+def restore_visibility(bundle_id):
+    """Put every layer back on if a previous export never finished.
+
+    export_layer_mask switches off every layer but one. If the app dies in
+    between — a crash, or a build that killed it mid-flight — the document
+    is left with a single visible layer and everything else off, which
+    looks exactly like the artwork having been deleted. The snapshot is
+    written BEFORE anything is hidden, so it is always there to undo it.
+    """
+    if not os.path.exists(SNAPSHOT):
+        return 0
+    try:
+        rows = [r.split("\t") for r in
+                open(SNAPSHOT, encoding="utf-8").read().split("\n") if r]
+    except OSError:
+        return 0
+    if not rows:
+        os.remove(SNAPSHOT)
+        return 0
+    pairs = "".join(
+        '  if (id of L as text) is "%s" then set visible of L to %s\n'
+        % (_escape(i), "true" if v == "1" else "false") for i, v in rows)
+    body = ('set d to front document\n'
+            'repeat with L in layers of d\n'
+            '  try\n'
+            '%s'
+            '  end try\n'
+            'end repeat\n'
+            'return "ok"' % pairs)
+    try:
+        run(_tell(bundle_id, body))
+    except Exception:
+        return 0
+    os.remove(SNAPSHOT)
+    return len(rows)
+
+
+def _snapshot_visibility(bundle_id):
+    """Record what is on and what is off, on disk, before hiding anything."""
+    body = ('set d to front document\n'
+            'set out to ""\n'
+            'repeat with L in layers of d\n'
+            '  set out to out & (id of L as text) & tab & '
+            '(if visible of L then "1" else "0") & linefeed\n'
+            'end repeat\n'
+            'return out')
+    rows = run(_tell(bundle_id, body))
+    os.makedirs(os.path.dirname(SNAPSHOT), exist_ok=True)
+    with open(SNAPSHOT, "w", encoding="utf-8") as fh:
+        fh.write(rows)
+
+
 def export_layer_mask(bundle_id, layer_name, out_path):
     """Export just one layer as PNG, and put every other layer back.
 
@@ -125,6 +182,7 @@ def export_layer_mask(bundle_id, layer_name, out_path):
     Each restore is also its own `try`, so one layer that refuses cannot
     leave the rest of them hidden.
     """
+    _snapshot_visibility(bundle_id)
     body = ('set d to front document\n'
             'set ids to {}\n'
             'set states to {}\n'
@@ -193,6 +251,14 @@ def add_text_layer(bundle_id, text, font_name, size, angle, position,
             '  set name of t to "%s"\n'
             '%s'
             '%s'
+            # Re-assert the size AFTER the width. The box arrives too late
+            # to stop the wrap Pixelmator performed when the layer was
+            # created with its text, so the layout is nudged into being
+            # recomputed at the width we actually asked for. Without this,
+            # 7 lines came back as 8 bands with 43px outside the shape,
+            # however wide the box was made.
+            '  tell text content of t to set its size to %.3f\n'
+            '  delay 0.1\n'
             '  set rotation of t to %.3f\n'
             '  delay 0.15\n'
             '  set position of t to {%.1f, %.1f}\n'
@@ -214,7 +280,7 @@ def add_text_layer(bundle_id, text, font_name, size, angle, position,
                # retry loop shrinking the text to nothing. Give the box room
                # for the longest line and it lays out as intended.
                ('  set width of t to %d\n' % int(box_width)) if box_width else '',
-               (-angle) % 360.0, position[0], position[1]))
+               size, (-angle) % 360.0, position[0], position[1]))
     return [float(v) for v in run(_tell(bundle_id, body)).split("\t")]
 
 
@@ -373,8 +439,13 @@ def apply_fit(bundle_id, shape, fit, text, font_name, angle, mask_path,
         if on_probe:
             on_probe(attempt, size, box, position, drawn_w, drawn_h,
                      mask_w, mask_h, drawn_lines, sent_lines, escaped)
-        lost = max(0, sent_lines - drawn_lines)
-        if escaped == 0 and not lost:
+        # Either direction is a failure. Fewer bands than lines means text
+        # vanished; MORE means Pixelmator re-broke the layout, so what got
+        # drawn is not what was verified. Checking only for "fewer" let a
+        # re-wrap through as a success with 43px hanging outside the shape.
+        drift = drawn_lines - sent_lines
+        lost = -drift if drift < 0 else 0
+        if escaped == 0 and drift == 0:
             box = _tighten_box(bundle_id, engine, shape, payload, font_name,
                                size, angle, position, color, name, align_now,
                                box, sent_lines, mask_path)
@@ -446,7 +517,7 @@ def apply_fit(bundle_id, shape, fit, text, font_name, angle, mask_path,
                 nudges += 1
         if size < 6:
             break
-    return size, escaped, VERIFY_STEPS, lost, box
+    return size, escaped, VERIFY_STEPS, (lost or drift), box
 
 
 def _tighten_box(bundle_id, engine, shape, payload, font_name, size, angle,
