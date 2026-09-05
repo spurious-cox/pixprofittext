@@ -309,40 +309,40 @@ def load_shape(path, fill_interior=True):
 
 
 def fill_edge_notches(shape, min_depth):
-    """Close a deep notch cut into the TOP or BOTTOM edge of a shape.
+    """Close a notch that SPLITS the shape, leaving the outline alone.
 
-    An arch with a bite out of its base has, in the notched columns, ink
-    that stops short of the shape's own bottom. The flow then has to squeeze
-    its last lines into the strip above the bite, and the legs either side
-    go unused because text cannot read down one and up the other.
+    A notch worth ignoring divides a row in two: an arch standing on legs
+    has, in the notched rows, ink at the left and ink at the right with a
+    gap between. Filling that gap lets the flow run its lines across, which
+    is what "Ignore Notch" asks for. The legs otherwise stay empty, because
+    text cannot read down one and up the other.
 
-    Told to ignore it, the notch is filled to the shape's extent and the
-    lines run straight across. Text will sit over the notch: that is what
-    was asked for, and tidying it afterwards is the user's business.
+    The test is per ROW, between the first and last ink on it. That is the
+    whole of it, and it is why this is right where a per-column rule was
+    wrong: a column-wise fill closed every column starting lower than the
+    shape's top, which on a dome is not a notch at all but its curvature —
+    it squared off all four corners and left the notch untouched.
 
-    Only notches that break the top or bottom edge. A notch in a SIDE — the
-    swallowtail of a flag — is a different shape of problem, and filling it
-    would swallow the tail entirely.
+    It also leaves a notch that opens onto a SIDE alone, for free. A flag's
+    swallowtail takes a bite out of the right edge, so those rows hold one
+    contiguous run and there is no gap between first and last ink to fill.
 
-    `min_depth` is in rows: shallower than this and the flow can lay a
-    usable line beside the notch already, so nothing is gained by filling.
+    `min_depth` is in rows: a gap shallower than this is roughness rather
+    than a notch, and the flow can already lay a line beside it.
     """
     if not shape.any():
         return shape
-    rows = np.nonzero(shape.any(axis=1))[0]
-    top, bottom = int(rows.min()), int(rows.max())
     out = shape.copy()
-    for x in range(shape.shape[1]):
-        column = np.nonzero(shape[:, x])[0]
-        if column.size == 0:
-            continue
-        hi, lo = int(column.min()), int(column.max())
-        # A column that stops short of the shape's bottom, by more than a
-        # line, is a bottom notch; short of the top, a top notch.
-        if bottom - lo >= min_depth:
-            out[lo:bottom + 1, x] = True
-        if hi - top >= min_depth:
-            out[top:hi + 1, x] = True
+    for y in range(shape.shape[0]):
+        cols = np.nonzero(shape[y])[0]
+        if cols.size:
+            out[y, int(cols.min()):int(cols.max()) + 1] = True
+    added = out & ~shape
+    if not added.any():
+        return shape
+    rows = np.nonzero(added.any(axis=1))[0]
+    if int(rows.max() - rows.min() + 1) < min_depth:
+        return shape                     # roughness, not a notch
     return out
 
 
