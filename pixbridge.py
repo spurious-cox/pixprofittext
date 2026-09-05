@@ -299,7 +299,7 @@ def apply_fit(bundle_id, shape, fit, text, font_name, angle, mask_path,
     So the offset is measured from the drawn ink and applied as a nudge, and
     the size is only reduced when the ink is genuinely too big.
 
-    Returns (size_used, escaped_pixels, attempts).
+    Returns (size_used, escaped_pixels, attempts, lines_lost).
     """
     import numpy as np
     import fittext_engine as engine
@@ -308,6 +308,7 @@ def apply_fit(bundle_id, shape, fit, text, font_name, angle, mask_path,
     placement = fit
     nudge = [0.0, 0.0]
     escaped = 0
+    lost = 0
     nudges = 0
     corrected = False
 
@@ -355,18 +356,26 @@ def apply_fit(bundle_id, shape, fit, text, font_name, angle, mask_path,
         ys, xs = np.nonzero(actual)
         drawn_w = float(xs.max() - xs.min() + 1) if ys.size else 0.0
         drawn_h = float(ys.max() - ys.min() + 1) if ys.size else 0.0
+        # How many separate bands of ink Pixelmator drew. If that is fewer
+        # than the number of lines we sent, our breaks did not survive and
+        # text has been LOST — the layer looks tidy and is missing words.
+        #
+        # This used to be computed only to log it, and the pass was declared
+        # a success on `escaped == 0` alone. A 1.43in arch asked to hold 317
+        # characters logged "lines drawn=5 sent=7", escaping 0, and reported
+        # done: two lines silently gone. Counting bands is reliable — the
+        # same text rendered here gives 7 bands for 7 lines at every size
+        # from 6pt up — so a shortfall is real and must fail the pass.
+        rows = actual.any(axis=1).astype(np.int8)
+        drawn_lines = int(np.clip(np.diff(np.concatenate(
+            ([0], rows, [0]))), 0, None).sum())
+        sent_lines = len(lines) if lines else 1
         if on_probe:
-            # How many separate bands of ink Pixelmator drew. If that is not
-            # the number of lines we sent, our breaks did not survive and
-            # the box is re-wrapping them.
-            rows = actual.any(axis=1).astype(np.int8)
-            drawn_lines = int(np.clip(np.diff(np.concatenate(
-                ([0], rows, [0]))), 0, None).sum())
             on_probe(attempt, size, box, position, drawn_w, drawn_h,
-                     mask_w, mask_h, drawn_lines,
-                     len(lines) if lines else 1, escaped)
-        if escaped == 0:
-            return size, 0, attempt
+                     mask_w, mask_h, drawn_lines, sent_lines, escaped)
+        lost = max(0, sent_lines - drawn_lines)
+        if escaped == 0 and not lost:
+            return size, 0, attempt, 0
         if ys.size == 0:
             break
 
@@ -434,7 +443,7 @@ def apply_fit(bundle_id, shape, fit, text, font_name, angle, mask_path,
                 nudges += 1
         if size < 6:
             break
-    return size, escaped, VERIFY_STEPS
+    return size, escaped, VERIFY_STEPS, lost
 
 
 def _box_for(engine, lines, text, font_name, size, calibration):

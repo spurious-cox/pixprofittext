@@ -404,9 +404,30 @@ calculation it trusts.
        unusable.  The Try button asks for it instead.
 
 Created by: Claude (Anthropic) for Tim McCoy
+
+v2.8.0 fixes three things found while a 1.43 x 0.95in arch refused to hold
+317 characters at anything above the 6pt floor:
+
+  * A pass that LOST lines was reported as a success. The verify loop asked
+    only whether ink had escaped the shape; "lines drawn=5 sent=7" was
+    logged and ignored, so two lines of scripture vanished and the app said
+    it had verified the placement. Losing lines now fails the pass and says
+    so in plain words.
+  * Every button ignored the first click when the window was not key —
+    AppKit spends that click activating the app, and NSButton declines
+    acceptsFirstMouse. Coming back from Pixelmator, "Follow the shape"
+    looked like a checkbox that randomly ignored you.
+  * The cached calibration for HelveticaNeue-Bold had drifted to a height
+    factor of 0.92 while Regular measured 1.48; every earlier generation of
+    that cache had the two faces agreeing to within 0.2%.
+
+Worth recording what was NOT wrong, because it cost an afternoon: the fitted
+size itself. 317 characters in an arch that size honestly want about 6pt,
+and both the flowed and the plain path agree on it to within 0.3pt. The
+shape was too small for the text all along.
 """
 
-APP_VERSION = "2.7.3"
+APP_VERSION = "2.8.0"
 COPYRIGHT = "© 2026 Tim McCoy"
 
 import os
@@ -470,6 +491,21 @@ def _label(text, x, y, width=90):
     field.setDrawsBackground_(False)
     field.setFont_(NSFont.systemFontOfSize_(11))
     return field
+
+
+class FirstMouseButton(NSButton):
+    """A button that acts on the first click, even from another app.
+
+    AppKit spends the first click on an inactive window activating it, and
+    NSButton answers no to acceptsFirstMouse, so coming back from Pixelmator
+    the click that should have toggled "Follow the shape" only brought this
+    window forward. That reads as a checkbox ignoring you at random — and it
+    behaved perfectly whenever the window already had focus, which is what
+    made it look intermittent rather than broken.
+    """
+
+    def acceptsFirstMouse_(self, event):
+        return True
 
 
 class PlainTextView(NSTextView):
@@ -820,7 +856,7 @@ class Controller(NSObject):
         panel.addSubview_(self.angle_field)
         panel.addSubview_(_label("°", 636, 112, 14))
 
-        self.wrap_box = NSButton.alloc().initWithFrame_(
+        self.wrap_box = FirstMouseButton.alloc().initWithFrame_(
             NSMakeRect(356, 46, 220, 20))
         self.wrap_box.setButtonType_(3)                    # switch
         self.wrap_box.setTitle_("Follow the shape")
@@ -849,7 +885,7 @@ class Controller(NSObject):
         self.align_menu.setToolTip_(align_tip)
         panel.addSubview_(self.align_menu)
 
-        self.try_button = NSButton.alloc().initWithFrame_(
+        self.try_button = FirstMouseButton.alloc().initWithFrame_(
             NSMakeRect(496, 16, 122, 30))
         self.try_button.setTitle_("Try")
         self.try_button.setBezelStyle_(1)
@@ -857,7 +893,7 @@ class Controller(NSObject):
         self.try_button.setAction_("refit:")
         panel.addSubview_(self.try_button)
 
-        best = NSButton.alloc().initWithFrame_(NSMakeRect(356, 74, 130, 28))
+        best = FirstMouseButton.alloc().initWithFrame_(NSMakeRect(356, 74, 130, 28))
         best.setTitle_("Best angle")
         best.setBezelStyle_(1)
         best.setTarget_(self)
@@ -902,14 +938,14 @@ class Controller(NSObject):
         self.shape_label.setTextColor_(NSColor.secondaryLabelColor())
         panel.addSubview_(self.shape_label)
 
-        refresh = NSButton.alloc().initWithFrame_(NSMakeRect(360, 16, 126, 30))
+        refresh = FirstMouseButton.alloc().initWithFrame_(NSMakeRect(360, 16, 126, 30))
         refresh.setTitle_("Reread shape")
         refresh.setBezelStyle_(1)
         refresh.setTarget_(self)
         refresh.setAction_("refreshShape:")
         panel.addSubview_(refresh)
 
-        self.apply_button = NSButton.alloc().initWithFrame_(
+        self.apply_button = FirstMouseButton.alloc().initWithFrame_(
             NSMakeRect(626, 16, 122, 30))
         self.apply_button.setTitle_("Apply")
         self.apply_button.setBezelStyle_(1)
@@ -918,7 +954,7 @@ class Controller(NSObject):
         self.apply_button.setAction_("apply:")
         panel.addSubview_(self.apply_button)
 
-        exit_button = NSButton.alloc().initWithFrame_(
+        exit_button = FirstMouseButton.alloc().initWithFrame_(
             NSMakeRect(12, 16, 92, 30))
         exit_button.setTitle_("Exit")
         exit_button.setBezelStyle_(1)
@@ -926,7 +962,7 @@ class Controller(NSObject):
         exit_button.setAction_("exitApp:")
         panel.addSubview_(exit_button)
 
-        info_button = NSButton.alloc().initWithFrame_(
+        info_button = FirstMouseButton.alloc().initWithFrame_(
             NSMakeRect(110, 16, 62, 30))
         info_button.setTitle_("Info")
         info_button.setBezelStyle_(1)
@@ -1249,7 +1285,7 @@ class Controller(NSObject):
             # Its own layer, named for the shape, so previous fits survive.
             layer_name = bridge.unique_layer_name(
                 self.bundle, "Text in %s" % (self.shape_layer or "shape"))
-            size, escaped, tries = bridge.apply_fit(
+            size, escaped, tries, lost = bridge.apply_fit(
                 self.bundle, self.shape, self.fit, payload, font, angle,
                 scratch("verify.png"), padding=padding,
                 calibration=self.calibration, color=colour,
@@ -1264,10 +1300,17 @@ class Controller(NSObject):
                          "escaping=%d"
                          % (n, sz, box, pos[0], pos[1], dw, dh, mw, mh,
                             dl, sl, esc)))
-            note("APPLY done: %d pt, %d pass(es), escaping %d, layer %r"
-                 % (size, tries, escaped, layer_name))
+            note("APPLY done: %d pt, %d pass(es), escaping %d, lost %d, "
+                 "layer %r" % (size, tries, escaped, lost, layer_name))
             note("APPLY predicted %.1f pt -> settled %d pt" % (self.fit.size, size))
-            if escaped:
+            if lost:
+                # Silence here is the worst outcome: the layer looks tidy
+                # and is missing words.
+                post(self, "Placed at %d pt, but %d line%s did not fit — the "
+                           "shape is too small for this much text. Shorten it, "
+                           "enlarge the shape, or reduce the margin."
+                           % (size, lost, "" if lost == 1 else "s"), True)
+            elif escaped:
                 post(self, "Placed at %d pt, but %d pixels still sit outside."
                            % (size, escaped), True)
             else:
