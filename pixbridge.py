@@ -506,7 +506,16 @@ def apply_fit(bundle_id, shape, fit, text, font_name, angle, mask_path,
                                                     "center")
                 # Never allow a retry to grow: every pass must move down, or
                 # ten passes can end no closer than they started.
-                new_size = min(int(better.size), size - 1)
+                #
+                # At the 6pt floor there is no smaller size, and requiring
+                # one threw the correction away entirely — so all ten passes
+                # ran on the model that had just been proved wrong, logging
+                # the same drawn=130x113 model=132x73 line ten times over.
+                # The correction is worth taking for the MODEL alone: it is
+                # what re-places the layer against what Pixelmator really
+                # draws, and it is the mechanism that catches a bad
+                # calibration without anyone having to notice.
+                new_size = min(int(better.size), max(6, size - 1))
                 if new_size >= 6:
                     placement = better
                     size = new_size
