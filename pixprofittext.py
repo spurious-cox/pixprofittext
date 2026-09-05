@@ -427,7 +427,7 @@ and both the flowed and the plain path agree on it to within 0.3pt. The
 shape was too small for the text all along.
 """
 
-APP_VERSION = "2.12.0"
+APP_VERSION = "2.13.0"
 COPYRIGHT = "© 2026 Tim McCoy"
 
 import os
@@ -546,23 +546,47 @@ ALIGN_CHOICES = (("Auto", None), ("Left", "left"),
 
 INFO_TITLE = "PixProFitText"
 INFO_BODY = (
-    "We calculate, as best as possible, a fit for any shape you offer.\n\n"
-    "What lands on the canvas is an ordinary editable text layer, and "
-    "finishing it by hand is expected rather than a fallback. Everything in "
-    "Pixelmator's Text panel still applies:\n\n"
-    "    \u2022  Font, size and colour\n"
-    "    \u2022  Alignment, horizontal and vertical\n"
-    "    \u2022  Spacing: Line Height, Before Paragraph, After Paragraph\n"
-    "    \u2022  Indents\n"
-    "    \u2022  Convert to Shape, Convert to Pixels\n\n"
-    "Line Height is the one to reach for first — it is also the one thing "
-    "no script can set, since Pixelmator exposes no spacing property at "
-    "all, so opening it up by hand is the intended finish.\n\n"
-    "Two things to expect. Each line is sized for the row it sits on, so "
-    "anything that moves the lines vertically can push a long one into a "
-    "notch. And a shape with a straight edge on one side reads as aligned "
-    "to that edge; use the Align menu when it reads differently than you "
-    "do.\n\n"
+    "We calculate, as best as possible, a fit for any shape you offer. What "
+    "lands on the canvas is an ordinary editable text layer, and finishing "
+    "it by hand is expected rather than a fallback.\n\n"
+
+    "WHAT YOU MAY NEED TO FINISH\n"
+    "    \u2022  Line Height. Reach for this first \u2014 fitted text is "
+    "set tight so it fills the shape, and opening the leading is usually "
+    "all it needs.\n"
+    "    \u2022  Character spacing, if the letters read cramped at a small "
+    "size.\n"
+    "    \u2022  Alignment. A shape with one straight edge reads as aligned "
+    "to that edge; use the Align menu when it reads differently to you than "
+    "it does to us.\n\n"
+
+    "WHAT THIS APP CANNOT DO\n"
+    "    \u2022  Set Line Height or character spacing. Pixelmator exposes "
+    "neither to AppleScript, so no script can touch them at all. That is "
+    "why they are left to you rather than done for you.\n"
+    "    \u2022  Re-flow after you change them. Every line was sized for "
+    "the row it sits on, so opening the leading slides all of them down and "
+    "a long line can drop into a notch or over an edge. If that happens, "
+    "undo the spacing and either shorten the text or enlarge the shape, "
+    "then fit again.\n"
+    "    \u2022  Make text fit a shape too small to hold it.\n\n"
+
+    "WHEN IT SAYS IT WILL NOT FIT\n"
+    "That is arithmetic rather than a failure. Below about 6pt the text "
+    "stops being readable, so that is the floor. Adding half again as much "
+    "text needs roughly half again as much shape \u2014 enlarging the shape "
+    "is usually a better answer than shrinking the type.\n\n"
+
+    "FOLLOW THE SHAPE\n"
+    "Ticked, the lines are broken to the outline, short where the shape is "
+    "narrow and long where it is wide. Unticked, your own line breaks are "
+    "honoured, and text that has none is wrapped to a block that fits "
+    "inside the shape.\n\n"
+
+    "If a placement loses lines, or leaves ink outside the shape, we say so "
+    "instead of placing it quietly. A layer that looks tidy and is missing "
+    "words is the one outcome worth refusing.\n\n"
+
     "You can bring this back at any time with the Info button, next to "
     "Exit.")
 
