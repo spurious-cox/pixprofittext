@@ -427,7 +427,7 @@ and both the flowed and the plain path agree on it to within 0.3pt. The
 shape was too small for the text all along.
 """
 
-APP_VERSION = "2.14.0"
+APP_VERSION = "3.0.0"
 COPYRIGHT = "© 2026 Tim McCoy"
 
 import os
@@ -1460,7 +1460,10 @@ def compute_fit(controller, text, font, angle):
 # covered the opaque export and the next measurement landed on a
 # transparent one.  A cached calibration is never re-measured, so a bad one
 # can only be got rid of by moving the key.
-CALIB_KEY = "PixProFitTextCalibration6"
+# 7: width is an OFFSET again, measured this time. Key 6 holds factors near
+#    1.0, and reading 0.999 back as an offset would mean a one-pixel
+#    correction where 79 is needed.
+CALIB_KEY = "PixProFitTextCalibration7"
 
 
 def ensure_calibration(controller, text, font):
@@ -1488,7 +1491,7 @@ def ensure_calibration(controller, text, font):
         controller.calibration = bridge.calibrate(
             controller.bundle, text, font, scratch("calib.png"))
         remembered = dict(stored or {})
-        remembered[font] = "%f,%f" % (controller.calibration.width_factor,
+        remembered[font] = "%f,%f" % (controller.calibration.width_offset,
                                       controller.calibration.height_factor)
         NSUserDefaults.standardUserDefaults().setObject_forKey_(
             remembered, CALIB_KEY)

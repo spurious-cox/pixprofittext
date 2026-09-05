@@ -507,7 +507,7 @@ def apply_fit(bundle_id, shape, fit, text, font_name, angle, mask_path,
         if calibration is not None and not corrected and mask_w and mask_h:
             corrected = True
             calibration = engine.Calibration(
-                calibration.width_factor * (drawn_w / mask_w),
+                calibration.width_offset + (drawn_w - mask_w),
                 calibration.height_factor * (drawn_h / mask_h),
                 calibration.text, calibration.font)
             better = engine.fit_text(
@@ -669,7 +669,7 @@ def _box_for(engine, lines, text, font_name, size, calibration,
             continue
         widest = max(widest, engine.text_mask(line, font_name, size,
                                               0.0).mask.shape[1])
-    factor = calibration.width_factor if calibration else 1.0
+    offset = calibration.width_offset if calibration else 0.0
     # MUCH wider than the line needs, deliberately. The box has exactly one
     # job: stop Pixelmator re-wrapping the lines the fit chose. Too wide
     # costs a single nudge, which the verify loop performs anyway, because
@@ -681,7 +681,7 @@ def _box_for(engine, lines, text, font_name, size, calibration,
     # measured 1.031 at the 72pt probe, but at 12pt Pixelmator draws 10%
     # wider than the model, per-glyph advances rounding to whole pixels
     # being proportionally far larger down there.
-    return int(widest * factor * 1.45 + 160)
+    return int((widest + offset) * 1.20 + 2 * SIDE_SLACK)
 
 
 def _refit(engine, shape, text, font_name, angle, padding, size,
@@ -815,5 +815,9 @@ def calibrate(bundle_id, text, font_name, mask_path, reference=100.0):
     app_pitch = (three[3] - one[3]) / 2.0
     pix_pitch = (three[1] - one[1]) / 2.0
     factor = (pix_pitch / app_pitch) if app_pitch > 0 else 1.0
-    width = (one[0] / one[2]) if one[2] > 0 else 1.0
-    return engine.Calibration(width, factor, text, font_name)
+    # The difference, not the ratio. Measured at 13 sizes it is a constant
+    # ~79px for Helvetica Neue; as a ratio the same thing reads 1.04 at 72pt
+    # and 1.53 at 6pt, and a ratio fitted at the probe size is then wrong
+    # everywhere else.
+    offset = float(one[0] - one[2])
+    return engine.Calibration(offset, factor, text, font_name)

@@ -111,13 +111,13 @@ def text_mask(text, font_name, size, angle=0.0, line_spacing=1.0,
     rows = pixels.reshape(height, stride)[:, :width * 4]
     alpha = rows.reshape(height, width, 4)[:, :, 3]
     mask = alpha >= 16                          # any ink at all counts
-    if calibration is not None and calibration.width_factor != 1.0:
-        # Width is a FACTOR, not an offset — see Calibration. Applied to the
+    if calibration is not None and calibration.width_offset:
+        # Width is an OFFSET, not a factor — see Calibration. Applied to the
         # width alone: the height is already right, having gone into the
         # line spacing above.
         ink = crop_with_offset(mask)
-        target_w = max(1, int(round(ink.mask.shape[1] *
-                                    calibration.width_factor)))
+        target_w = max(1, int(round(ink.mask.shape[1] +
+                                    calibration.width_offset)))
         mask = rescale_mask(ink.mask, target_w, ink.mask.shape[0])
     if angle:
         mask = rotate_mask(mask, angle)
@@ -218,18 +218,28 @@ class Calibration(object):
     reachable from a script: rich text exposes only color, font and size.
     So both are measured once, from the real thing.
 
-    BOTH are factors. Width used to be a constant offset, on the belief
-    that it was text box padding and so independent of size. It is not: at
-    the offset measured for Helvetica Neue (+4px) a 42pt fit came out 28px
-    wider than predicted — 6.6%, and 363px of it outside the shape. The
-    error is proportional, which is why it stayed invisible for every fit
-    at 8-16pt and broke the first one at 43pt.
+    Width is an OFFSET and height is a FACTOR, and they are different
+    shapes because the two effects are different things. Measured for
+    Helvetica Neue at 13 sizes from 6pt to 72pt:
+
+        drawn_w - model_w  =  79, 78, 79, 78, 79, 78, 79, 79, 77, 79, 79,
+                              80, 79        -- constant, in pixels
+        drawn_h / model_h  =  1.43 at every size, no trend
+
+    Width was made a factor once before, because at +4px a 42pt fit came
+    out 6.6% wide. That was the right observation and the wrong conclusion:
+    the offset is not 4, it is ~79, and 4 was simply far too small. As a
+    ratio the true offset reads 1.04 at 72pt and 1.53 at 6pt, so a factor
+    fitted at one size is wrong at every other — which is what sent the
+    verify loop shrinking 18, 17, 16, 14, 12, 10, 8, 6 and still 15px
+    outside, the fixed offset becoming a larger share of an ever smaller
+    line.
     """
 
-    __slots__ = ("width_factor", "height_factor", "text", "font")
+    __slots__ = ("width_offset", "height_factor", "text", "font")
 
-    def __init__(self, width_factor=1.0, height_factor=1.0, text="", font=""):
-        self.width_factor = width_factor
+    def __init__(self, width_offset=0.0, height_factor=1.0, text="", font=""):
+        self.width_offset = width_offset
         self.height_factor = height_factor
         self.text, self.font = text, font
 
@@ -242,12 +252,12 @@ class Calibration(object):
 
     def target(self, ink_w, ink_h):
         """What Pixelmator will actually draw, given what AppKit drew."""
-        return (max(1, int(round(ink_w * self.width_factor))),
+        return (max(1, int(round(ink_w + self.width_offset))),
                 max(1, int(round(ink_h * self.height_factor))))
 
     def __repr__(self):
-        return "Calibration(x%.4f wide, x%.4f tall)" % (
-            self.width_factor, self.height_factor)
+        return "Calibration(%+.1fpx wide, x%.4f tall)" % (
+            self.width_offset, self.height_factor)
 
 
 def dark_ink(path, threshold=128):
