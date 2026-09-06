@@ -427,7 +427,7 @@ and both the flowed and the plain path agree on it to within 0.3pt. The
 shape was too small for the text all along.
 """
 
-APP_VERSION = "3.2.2"
+APP_VERSION = "3.3.0"
 COPYRIGHT = "© 2026 Tim McCoy"
 
 import os
@@ -842,7 +842,14 @@ class Controller(NSObject):
         panel.setAutoresizingMask_(NSViewWidthSizable | NSViewMaxYMargin)
         view.addSubview_(panel)
 
-        panel.addSubview_(_label("Text", 12, 168))
+        panel.addSubview_(_label("Text", 12, 168, 34))
+        # Beside the heading rather than under the box: it belongs to the
+        # label, and the space under the box is the status line's.
+        self.word_count = _label("", 50, 168, 160)
+        self.word_count.setTextColor_(
+            NSColor.colorWithCalibratedRed_green_blue_alpha_(
+                0.05, 0.42, 0.16, 1.0))
+        panel.addSubview_(self.word_count)
         text_scroll = NSScrollView.alloc().initWithFrame_(
             NSMakeRect(12, 74, 330, 92))
         text_scroll.setHasVerticalScroller_(True)
@@ -852,6 +859,7 @@ class Controller(NSObject):
         self.text_view.setFont_(NSFont.systemFontOfSize_(13))
         saved = load_settings()
         self.text_view.setString_(saved.get("text") or DEFAULT_TEXT)
+        self.refreshWordCount()      # correct before a key is pressed
         self.text_view.setDelegate_(self)
         self.text_view.setRichText_(False)
         text_scroll.setDocumentView_(self.text_view)
@@ -1132,6 +1140,15 @@ class Controller(NSObject):
     def text(self):
         return str(self.text_view.string())
 
+    def refreshWordCount(self):
+        """Words and characters, beside the Text heading."""
+        body = self.text()
+        words = len(body.split())
+        self.word_count.setStringValue_(
+            "" if not words else
+            "%d word%s, %d characters" % (words, "" if words == 1 else "s",
+                                          len(body)))
+
     def angle(self):
         return float(self.angle_slider.doubleValue())
 
@@ -1198,6 +1215,7 @@ class Controller(NSObject):
         keystroke made the box unusable to type in. The Try button asks for
         the work; typing just marks what is on screen as stale.
         """
+        self.refreshWordCount()
         self.calibration = None
         self.fit = None
         self.applied = False
