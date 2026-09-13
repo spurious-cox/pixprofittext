@@ -47,8 +47,18 @@ Select the shape layer, then press **Reread shape**.
 | **Align** | Auto reads it off the shape; Left / Center / Right force it |
 | **Margin** | pixels of clearance kept between the ink and the outline |
 | **Info** | what the app promises, and what it leaves to you |
+| **Updates…** | asks GitHub whether a newer release has been published |
 
 Nothing is recomputed while you type — **Try** is what does the work.
+
+## Updates
+
+**Updates…** asks GitHub for the newest published release and compares it
+with this build. It only ever reports: nothing is downloaded, and nothing
+replaces itself. If there is a newer one it offers to open the releases
+page, or you can take it through Homebrew:
+
+    brew upgrade --cask pixprofittext
 
 ## Finishing by hand
 

@@ -432,7 +432,7 @@ and both the flowed and the plain path agree on it to within 0.3pt. The
 shape was too small for the text all along.
 """
 
-APP_VERSION = "3.4.0"
+APP_VERSION = "3.5.0"
 COPYRIGHT = "© 2026 Tim McCoy"
 
 import os
@@ -619,6 +619,82 @@ INFO_BODY = (
 
     "You can bring this back at any time with the Info button, next to "
     "Exit.")
+
+
+RELEASES_API = "https://api.github.com/repos/spurious-cox/pixprofittext/releases/latest"
+RELEASES_PAGE = "https://github.com/spurious-cox/pixprofittext/releases/latest"
+
+
+def _version_tuple(text):
+    """"3.4.0" -> (3, 4, 0), so 3.10.0 sorts above 3.9.0 rather than below."""
+    parts = []
+    for piece in str(text).lstrip("vV").split("."):
+        digits = "".join(c for c in piece if c.isdigit())
+        parts.append(int(digits) if digits else 0)
+    return tuple(parts)
+
+
+def latest_release():
+    """The newest published tag, or None if the question cannot be answered.
+
+    Deliberately read-only: it asks GitHub what the latest release is and
+    reports back. It never downloads or replaces anything — a running bundle
+    cannot safely overwrite itself, and a wrong answer there costs an app.
+    """
+    import json
+    import urllib.request
+    request = urllib.request.Request(
+        RELEASES_API,
+        headers={"Accept": "application/vnd.github+json",
+                 "User-Agent": "PixProFitText/%s" % APP_VERSION})
+    with urllib.request.urlopen(request, timeout=10) as response:
+        return json.loads(response.read().decode("utf-8")).get("tag_name")
+
+
+def check_for_updates(controller):
+    """Compare this build against the newest release and say what it finds."""
+    alert = NSAlert.alloc().init()
+    alert.setAlertStyle_(1)
+    icon = app_icon()
+    if icon is not None:
+        alert.setIcon_(icon)
+    try:
+        tag = latest_release()
+    except Exception as exc:
+        alert.setMessageText_("Could not check for updates")
+        alert.setInformativeText_(
+            "GitHub could not be reached.\n\n%s" % exc)
+        alert.addButtonWithTitle_("OK")
+        alert.runModal()
+        return
+
+    if not tag:
+        alert.setMessageText_("No releases published yet")
+        alert.setInformativeText_("This build is %s." % APP_VERSION)
+        alert.addButtonWithTitle_("OK")
+        alert.runModal()
+        return
+
+    newest, mine = _version_tuple(tag), _version_tuple(APP_VERSION)
+    if newest <= mine:
+        alert.setMessageText_("PixProFitText is up to date")
+        alert.setInformativeText_(
+            "This build is %s. The newest release is %s."
+            % (APP_VERSION, tag.lstrip("vV")))
+        alert.addButtonWithTitle_("OK")
+        alert.runModal()
+        return
+
+    alert.setMessageText_("%s is available" % tag.lstrip("vV"))
+    alert.setInformativeText_(
+        "This build is %s.\n\nOpen the releases page to download it, or "
+        "update from the Terminal with:\n"
+        "    brew upgrade --cask pixprofittext" % APP_VERSION)
+    alert.addButtonWithTitle_("Open Releases Page")
+    alert.addButtonWithTitle_("Later")
+    if alert.runModal() == 1000:
+        NSWorkspace.sharedWorkspace().openURL_(
+            NSURL.URLWithString_(RELEASES_PAGE))
 
 
 def show_info(controller, first_time=False):
@@ -829,6 +905,9 @@ class Controller(NSObject):
 
     def showInfo_(self, sender):
         show_info(self)
+
+    def checkForUpdates_(self, sender):
+        check_for_updates(self)
 
     def _build(self):
         width, height = 760, 620
@@ -1064,6 +1143,16 @@ class Controller(NSObject):
         info_button.setToolTip_("What this app promises, and what it leaves "
                                 "to you")
         panel.addSubview_(info_button)
+
+        update_button = FirstMouseButton.alloc().initWithFrame_(
+            NSMakeRect(178, 16, 120, 30))
+        update_button.setTitle_("Updates\u2026")
+        update_button.setBezelStyle_(1)
+        update_button.setTarget_(self)
+        update_button.setAction_("checkForUpdates:")
+        update_button.setToolTip_(
+            "Ask GitHub whether a newer release has been published")
+        panel.addSubview_(update_button)
 
         window.setDelegate_(self)
         window.setInitialFirstResponder_(self.text_view)
