@@ -1,16 +1,25 @@
 #!/usr/bin/env python3
-"""Build icon/PixProFitText.icns — v1.0.0
+"""Build icon/PixProFitText.icns — v2.0.0
 
-The mark says what the app does: a word sitting inside an irregular outline,
-filling it. Drawn on Apple's 824-in-1024 squircle grid, the same as the other
-PixPro tools.
+The mark says what the app does: text fitted inside an irregular outline. It
+comes from Tim's own artwork, icon/PixProFitTextArt.png, placed on Apple's
+824-in-1024 squircle grid over the same navy plate as before.
+
+v1.0.0 drew the mark here in code (a dome over a bowl, with FIT set in
+Helvetica). The artwork replaced it, so the drawing code is gone; the plate
+colour, the grid and the squircle are unchanged.
+
+The art has transparency where the page was white: it was exported as a JPEG,
+so the white was keyed out by luminance at 4x with a median pass before
+scaling, which is what kept the compression speckle off the yellow edge.
 """
 import os, shutil, subprocess
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ICON_DIR = os.path.join(HERE, "icon")
 CANVAS, CONTENT, RADIUS = 1024, 824, 185.4
+MARGIN = 48
 INSET = (CANVAS - CONTENT) // 2
 
 
@@ -23,17 +32,13 @@ def squircle(size, radius):
 
 def build_png():
     plate = Image.new("RGBA", (CONTENT, CONTENT), (34, 52, 84, 255))
-    d = ImageDraw.Draw(plate)
-    # An irregular blob: a dome over a bowl, echoing the shapes this is for.
-    d.pieslice((90, 250, 734, 760), 0, 180, fill=(246, 208, 96, 255))
-    d.rectangle((90, 330, 734, 500), fill=(246, 208, 96, 255))
-    d.ellipse((300, 150, 524, 374), fill=(246, 208, 96, 255))
-    try:
-        font = ImageFont.truetype("/System/Library/Fonts/Supplemental/"
-                                  "Helvetica.ttc", 132, index=1)
-    except Exception:
-        font = ImageFont.load_default()
-    d.text((412, 430), "FIT", font=font, fill=(34, 52, 84, 255), anchor="mm")
+    art = Image.open(os.path.join(ICON_DIR, "PixProFitTextArt.png")).convert("RGBA")
+    # A margin inside the plate: artwork run to the squircle's edge is clipped
+    # by the corner radius and reads as cramped beside the other PixPro icons.
+    fit = CONTENT - 2 * MARGIN
+    scale = min(fit / art.width, fit / art.height)
+    art = art.resize((int(art.width * scale), int(art.height * scale)), Image.LANCZOS)
+    plate.paste(art, ((CONTENT - art.width) // 2, (CONTENT - art.height) // 2), art)
     plate.putalpha(squircle(CONTENT, RADIUS))
     canvas = Image.new("RGBA", (CANVAS, CANVAS), (0, 0, 0, 0))
     canvas.paste(plate, (INSET, INSET), plate)
