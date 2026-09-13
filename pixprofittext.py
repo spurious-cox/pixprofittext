@@ -14,6 +14,11 @@ its own and its ink compared against the shape, correcting position or size
 until nothing is outside. "Inside the shape" is a fact it checks, not a
 calculation it trusts.
 
+3.4.0  The Info panel and the README say where a shape comes from.
+       Both began at "select a shape layer", which is no help to
+       anyone who has not got one: the Shapes browser, the Pen, or
+       Format > Convert to Shape. US spelling in the text the app
+       shows. (Entries between 2.7.3 and here were not recorded.)
 2.7.3  The panel says where to find it again — "Info, next to Exit" —
        so dismissing it with "Don't show this again" is not a one-way door.
 2.7.2  The Info button says "Info". It was a ⓘ glyph on a rounded
@@ -427,7 +432,7 @@ and both the flowed and the plain path agree on it to within 0.3pt. The
 shape was too small for the text all along.
 """
 
-APP_VERSION = "3.3.0"
+APP_VERSION = "3.4.0"
 COPYRIGHT = "© 2026 Tim McCoy"
 
 import os
@@ -550,6 +555,16 @@ INFO_BODY = (
     "lands on the canvas is an ordinary editable text layer, and finishing "
     "it by hand is expected rather than a fallback.\n\n"
 
+    "WHERE THE SHAPE COMES FROM\n"
+    "    \u2022  The Shapes browser. Pixelmator ships hundreds \u2014 "
+    "drag one onto the canvas.\n"
+    "    \u2022  Draw your own, with the Pen or Freeform Pen, or the "
+    "rectangle, ellipse, polygon and star tools.\n"
+    "    \u2022  Convert something. Format \u25b8 Convert to Shape "
+    "turns a text layer into shapes, which is how you fit text inside "
+    "a letterform.\n"
+    "Select the shape layer, then press Reread shape.\n\n"
+
     "WHAT YOU MAY NEED TO FINISH\n"
     "    \u2022  Line Height. Reach for this first \u2014 fitted text is "
     "set tight so it fills the shape, and opening the leading is usually "
@@ -572,7 +587,7 @@ INFO_BODY = (
     "    \u2022  Make text fit a shape too small to hold it.\n"
     "    \u2022  Tidy up after Ignore Notch. It places the text across the "
     "notch on purpose; what to do about the words that land there is a "
-    "judgement, and yours.\n\n"
+    "judgment, and yours.\n\n"
 
     "WHEN IT SAYS IT WILL NOT FIT\n"
     "That is arithmetic rather than a failure. Below about 6pt the text "
@@ -583,7 +598,7 @@ INFO_BODY = (
     "FOLLOW SHAPE\n"
     "Ticked, the lines are broken to the outline, short where the shape is "
     "narrow and long where it is wide. Unticked, your own line breaks are "
-    "honoured, and text that has none is wrapped to a block that fits "
+    "honored, and text that has none is wrapped to a block that fits "
     "inside the shape.\n\n"
 
     "IGNORE NOTCH\n"

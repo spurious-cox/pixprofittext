@@ -219,21 +219,14 @@ class Calibration(object):
     So both are measured once, from the real thing.
 
     Width is an OFFSET and height is a FACTOR, and they are different
-    shapes because the two effects are different things. Measured for
-    Helvetica Neue at 13 sizes from 6pt to 72pt:
+    shapes because the two effects are different things. Measured across
+    the usable size range, the width difference is a constant number of
+    pixels with no trend, while the height difference is a constant ratio.
 
-        drawn_w - model_w  =  79, 78, 79, 78, 79, 78, 79, 79, 77, 79, 79,
-                              80, 79        -- constant, in pixels
-        drawn_h / model_h  =  1.43 at every size, no trend
-
-    Width was made a factor once before, because at +4px a 42pt fit came
-    out 6.6% wide. That was the right observation and the wrong conclusion:
-    the offset is not 4, it is ~79, and 4 was simply far too small. As a
-    ratio the true offset reads 1.04 at 72pt and 1.53 at 6pt, so a factor
-    fitted at one size is wrong at every other — which is what sent the
-    verify loop shrinking 18, 17, 16, 14, 12, 10, 8, 6 and still 15px
-    outside, the fixed offset becoming a larger share of an ever smaller
-    line.
+    The distinction matters: expressed as a ratio, a fixed pixel offset
+    reads small at large sizes and large at small ones, so a factor fitted
+    at one size is wrong at every other, and a verify loop that shrinks in
+    response never converges.
     """
 
     __slots__ = ("width_offset", "height_factor", "text", "font")

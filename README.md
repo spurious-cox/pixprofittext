@@ -22,6 +22,19 @@ Applications. Requires Pixelmator Pro.
 * Rotates to any **angle**, and can find the angle that fits the largest text.
 * Each **Apply** makes its own layer, named for the shape.
 
+## Where the shape comes from
+
+PixProFitText fits text into a shape layer you already have. Three ways to get
+one, all of which produce the same thing:
+
+* **The Shapes browser** — Pixelmator ships hundreds. Drag one onto the canvas.
+* **Draw your own** — the Pen or Freeform Pen tool for an outline of your own,
+  or the rectangle, ellipse, polygon and star tools for a primitive.
+* **Convert something** — Format ▸ Convert to Shape turns a text layer into
+  shapes, which is how you fit text inside a letterform.
+
+Select the shape layer, then press **Reread shape**.
+
 ## Using it
 
 | Control | What it does |
@@ -95,6 +108,6 @@ macOS 26, Pixelmator Pro, Python 3.14 with PyObjC, numpy and Pillow in `venv/`.
 Two Pixelmator builds may be installed at once; the app binds by **bundle id**
 and prefers whichever has a document open.
 
-## Licence
+## License
 
 MIT. See [LICENSE](LICENSE).

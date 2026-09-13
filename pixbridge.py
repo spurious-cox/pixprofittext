@@ -43,7 +43,7 @@ def active_bundle():
     """The bundle id of the Pixelmator that has a document open.
 
     Preferring the one with a document is what keeps the app from quietly
-    driving the other copy — which is exactly what happened the first time.
+    driving the other copy.
     """
     fallback = None
     for bundle_id in BUNDLE_IDS:
@@ -400,13 +400,12 @@ def apply_fit(bundle_id, shape, fit, text, font_name, angle, mask_path,
     nudges = 0
     # Keep the best pass, and notice when shrinking stops helping.
     #
-    # Pixelmator's width overshoot GROWS as the type shrinks — measured 1.03
-    # at 17pt and 1.42 at 6pt on the flag, per-glyph advances rounding to
-    # whole pixels being proportionally far larger down there. The loop read
-    # overshoot and answered by shrinking, which made the next overshoot
-    # worse, which made it shrink again: a fit predicted at 19.2pt walked
-    # 18, 17, 16, 14, 12, 10, 8, 6 and ended with the SAME 15px outside that
-    # pass 2 had at 17pt. The best pass has to be remembered and returned to.
+    # Pixelmator's width overshoot GROWS as the type shrinks: per-glyph
+    # advances round to whole pixels, and that rounding is
+    # proportionally far larger at small sizes. A loop that reads overshoot
+    # and answers by shrinking therefore makes the next overshoot worse and
+    # shrinks again, without ever converging. The best pass has to be
+    # remembered and returned to rather than trusting the latest one.
     best = None
     prev_escaped = None
     stalled = 0
@@ -819,15 +818,13 @@ def calibrate(bundle_id, text, font_name, mask_path, reference=100.0):
     app_pitch = (three[3] - one[3]) / 2.0
     pix_pitch = (three[1] - one[1]) / 2.0
     factor = (pix_pitch / app_pitch) if app_pitch > 0 else 1.0
-    # The difference, not the ratio. Measured at 13 sizes it is a constant
-    # ~79px for Helvetica Neue; as a ratio the same thing reads 1.04 at 72pt
-    # and 1.53 at 6pt, and a ratio fitted at the probe size is then wrong
-    # everywhere else.
+    # The difference, not the ratio. Across the size range it is a constant
+    # number of pixels; expressed as a ratio the same quantity varies with
+    # size, so a ratio fitted at the probe size is wrong everywhere else.
     #
     # And it must come out of the RAW pixels. Every measurement above is
-    # normalised to a 100pt reference, which cancels out of a ratio and does
-    # not cancel out of a difference: 79px measured at the 72pt probe was
-    # stored as 79 * 100/72 = 109.7, and the fit was that much too cautious
-    # — 12.2pt where the shape could hold more.
+    # normalized to a reference size, which cancels out of a ratio and does
+    # NOT cancel out of a difference — carrying the normalization into the
+    # offset makes the stored value too large and the fit too cautious.
     offset = float(one[0] - one[2]) * probe_size / reference
     return engine.Calibration(offset, factor, text, font_name)
