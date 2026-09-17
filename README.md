@@ -11,6 +11,8 @@ Select a shape layer, type or paste the text, press **Try** to see it, press
 Notarized and stapled by Apple — open the DMG and drag PixProFitText to
 Applications. Requires Pixelmator Pro.
 
+*3.5.2 is an icon change only — nothing else about the app has changed.*
+
 ![text fitted to a pentagon, with the app beside it](docs/screenshot.png)
 
 ## What it does
