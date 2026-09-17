@@ -9,9 +9,15 @@ Select a shape layer, type or paste the text, press **Try** to see it, press
 ### [⬇︎ Download the latest release](https://github.com/spurious-cox/pixprofittext/releases/latest)
 
 Notarized and stapled by Apple — open the DMG and drag PixProFitText to
-Applications. Requires Pixelmator Pro.
+Applications, or install it with Homebrew:
+
+```
+brew install --cask spurious-cox/tap/pixprofittext
+```
 
 *3.5.2 is an icon change only — nothing else about the app has changed.*
+
+Requires Pixelmator Pro.
 
 ![text fitted to a pentagon, with the app beside it](docs/screenshot.png)
 
