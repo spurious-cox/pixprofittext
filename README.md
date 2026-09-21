@@ -1,4 +1,4 @@
-# PixProFitText
+# PixProFitText 3.5.2
 
 Fits a block of text inside an irregular Pixelmator Pro shape, at the largest
 size that stays inside the outline.
@@ -14,9 +14,6 @@ Applications, or install it with Homebrew:
 ```
 brew install --cask spurious-cox/tap/pixprofittext
 ```
-
-*3.5.2 is an icon change only — nothing else about the app has changed.*
-
 Requires Pixelmator Pro.
 
 ![text fitted to a pentagon, with the app beside it](docs/screenshot.png)
