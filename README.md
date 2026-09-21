@@ -123,6 +123,10 @@ macOS 26, Pixelmator Pro, Python 3.14 with PyObjC, numpy and Pillow in `venv/`.
 Two Pixelmator builds may be installed at once; the app binds by **bundle id**
 and prefers whichever has a document open.
 
+## Problems or suggestions
+
+Open an issue: https://github.com/spurious-cox/pixprofittext/issues
+
 ## License
 
 MIT. See [LICENSE](LICENSE).
