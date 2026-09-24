@@ -74,7 +74,11 @@ codesign --force --timestamp --options runtime \
     --entitlements pixprofittext.entitlements --sign "$SIGN_ID" dist/PixProFitText.app
 codesign --verify --deep --strict dist/PixProFitText.app
 
-if [[ "$1" == "--install" ]]; then
+# Installing is the DEFAULT. It used to need --install, and the failure
+# that caused is silent: the build succeeds, /Applications keeps the old
+# version, and everything downstream looks like it worked. Pass --no-install
+# to build without touching /Applications.
+if [[ "$1" != "--no-install" ]]; then
     echo "==> installing to /Applications"
     rm -rf /Applications/PixProFitText.app
     cp -R dist/PixProFitText.app /Applications/
