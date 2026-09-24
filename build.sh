@@ -1,5 +1,5 @@
 #!/bin/zsh
-# Build, sign and install PixProFitText.app — v1.0.0
+# Build, sign and install PixProFitText.app — v1.1.0
 #
 # Signing follows the same rules the other apps here learned the hard way:
 #
@@ -31,12 +31,18 @@ echo "==> stopping any running instance (and its LaunchAgent)"
 pkill -x PixProFitText 2>/dev/null || true
 sleep 1
 
-echo "==> building the icon"
-./venv/bin/python make_icon.py
+# The icon is built separately, from the master artwork, with
+#   ~/bin/pixpro_icon FitText
+# (see icon/README.txt). make_icon.py is retired.
 
 echo "==> building"
 rm -rf build dist
 ./venv/bin/python setup.py py2app >/dev/null
+
+# macOS 26+ draws an app that has only an .icns shrunk onto a plain plate.
+# The Icon Composer document compiles into Assets.car, which macOS 26+ uses
+# instead; the .icns from setup.py is still what macOS 13-25 show.
+~/bin/glass_icon dist/PixProFitText.app icon/AppIcon.icon
 
 # py2app can leave a bundled dylib with rubbish appended past the end of the
 # Mach-O — same header, same load commands, ~139KB longer than the original —

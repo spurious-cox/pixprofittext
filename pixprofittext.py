@@ -432,7 +432,7 @@ and both the flowed and the plain path agree on it to within 0.3pt. The
 shape was too small for the text all along.
 """
 
-APP_VERSION = "3.5.1"
+APP_VERSION = "3.5.3"
 COPYRIGHT = "© 2026 Tim McCoy"
 
 import os
