@@ -22,3 +22,6 @@ test_window.png
 
 # signed/notarised output
 *.dmg
+
+# generated from README.md by build.sh
+*-README.txt

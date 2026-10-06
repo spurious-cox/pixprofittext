@@ -26,6 +26,7 @@ VERSION = app_version()
 setup(
     name="PixProFitText",
     app=APP,
+    data_files=["PixProFitText-README.txt"],
     options={"py2app": {
         "argv_emulation": False,
         # py2app strips bundled binaries by default, and strip mangles some
