@@ -1,4 +1,4 @@
-# PixProFitText 3.5.3
+# PixProFitText 3.6.0
 
 Fits a block of text inside an irregular Pixelmator Pro shape, at the largest
 size that stays inside the outline.
@@ -57,6 +57,9 @@ Select the shape layer, then press **Reread shape**.
 Nothing is recomputed while you type — **Try** is what does the work.
 
 ## Updates
+
+When it opens, PixProFitText also checks once a day, quietly, and shows
+"Update available" in the status line if there is a newer release.
 
 **Updates…** asks GitHub for the newest published release and compares it
 with this build. It only ever reports: nothing is downloaded, and nothing

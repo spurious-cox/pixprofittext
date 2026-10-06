@@ -432,7 +432,7 @@ and both the flowed and the plain path agree on it to within 0.3pt. The
 shape was too small for the text all along.
 """
 
-APP_VERSION = "3.5.3"
+APP_VERSION = "3.6.0"
 COPYRIGHT = "© 2026 Tim McCoy"
 
 import os
@@ -463,6 +463,8 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import fittext_engine as engine
+from PyObjCTools import AppHelper
+import pixpro_updates
 import pixbridge as bridge
 
 SCRATCH = os.path.expanduser("~/Library/Caches/PixProFitText")
@@ -892,6 +894,11 @@ class Controller(NSObject):
         self.margin_touched = False
         self._build()
         self.refreshShape_(None)
+        # The same automatic check every PixPro app makes when it opens: once a
+        # day at most, silent unless there is a newer release.
+        pixpro_updates.announce(
+            "pixprofittext", APP_VERSION,
+            lambda line: AppHelper.callAfter(say, self, line))
         # Once, on first run — after the window is up, so it has something
         # to sit in front of rather than appearing out of nowhere.
         if not NSUserDefaults.standardUserDefaults().boolForKey_(
