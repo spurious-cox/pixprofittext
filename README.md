@@ -1,4 +1,4 @@
-# PixProFitText 3.6.1
+# PixProFitText 3.6.2
 
 Fits a block of text inside an irregular Pixelmator Pro shape, at the largest
 size that stays inside the outline.

@@ -22,6 +22,35 @@ BUNDLE_IDS = ("com.apple.pixelmator",                 # Creator Studio 4.x
               "com.pixelmatorteam.pixelmator.x")      # Pixelmator Pro 3.x
 
 
+_TOP_JS = (
+    'ObjC.import("CoreGraphics");ObjC.import("AppKit");'
+    'function top(o){var l=ObjC.deepUnwrap(ObjC.castRefToObject('
+    '$.CGWindowListCopyWindowInfo(o,0)));'
+    'for(var i=0;i<l.length;i++){var w=l[i];'
+    'if(w.kCGWindowOwnerName=="Pixelmator Pro"&&w.kCGWindowLayer==0'
+    '&&w.kCGWindowBounds.Height>100)return w.kCGWindowOwnerPID;}return 0;}'
+    'var p=top(17);if(!p)p=top(16);'
+    'var a=p?$.NSRunningApplication.runningApplicationWithProcessIdentifier(p):null;'
+    'a?(p+"\\t"+ObjC.unwrap(a.bundleIdentifier)+"\\t"+ObjC.unwrap(a.bundleURL.path)):""')
+
+
+def top_pixelmator():
+    """(pid, bundle id, bundle path) of the Pixelmator Pro build whose window
+    is topmost, or None. This is the build the person is looking at: the
+    window list is ordered front to back, so it stays right when this app was
+    started from Stache, Flache or the Dock and is not itself frontmost.
+    Visible windows are tried first, then windows on other Spaces. Needs no
+    Screen Recording permission (owner, pid and size only)."""
+    try:
+        out = subprocess.run(["/usr/bin/osascript", "-l", "JavaScript",
+                              "-e", _TOP_JS], capture_output=True,
+                             text=True, timeout=8).stdout.strip()
+    except Exception:
+        return None
+    parts = out.split("\t")
+    return (int(parts[0]), parts[1], parts[2]) if len(parts) == 3 else None
+
+
 class PixmatorError(RuntimeError):
     pass
 
@@ -40,13 +69,18 @@ def _tell(bundle_id, body):
 
 
 def active_bundle():
-    """The bundle id of the Pixelmator that has a document open.
+    """The bundle id of the Pixelmator that has a document open, the topmost
+    build first.
 
     Preferring the one with a document is what keeps the app from quietly
     driving the other copy.
     """
     fallback = None
-    for bundle_id in BUNDLE_IDS:
+    # The build with the topmost window goes first: it is the one on screen.
+    top = top_pixelmator()
+    order = ([top[1]] if top and top[1] in BUNDLE_IDS else []) + \
+        [b for b in BUNDLE_IDS if not top or b != top[1]]
+    for bundle_id in order:
         try:
             count = run(_tell(bundle_id, "return (count of documents) as text"))
         except PixmatorError:
