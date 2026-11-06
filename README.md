@@ -130,6 +130,10 @@ and prefers whichever has a document open.
 
 Open an issue: https://github.com/spurious-cox/pixprofittext/issues
 
+## Trademarks
+
+Pixelmator and Pixelmator Pro are trademarks of the Pixelmator Team Ltd. PixPro apps are independent and are not affiliated with, endorsed by or sponsored by Pixelmator or Apple.
+
 ## License
 
 MIT. See [LICENSE](LICENSE).
