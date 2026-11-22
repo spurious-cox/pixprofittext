@@ -14,6 +14,18 @@ its own and its ink compared against the shape, correcting position or size
 until nothing is outside. "Inside the shape" is a fact it checks, not a
 calculation it trusts.
 
+3.6.4  A large shape no longer stops the app at launch. The fit's search
+       starts at the shape's height in points, and 30 lines of text at
+       1080 pt is an image of billions of pixels; past 2 GB the drawing
+       overflowed ("buffer is smaller than requested size"). Text too big
+       for the shape is now ruled out before it is drawn, which also cut a
+       fit on a 1220-pixel circle from about 20 seconds to 2.
+       An error no longer ends the app. It is written in full to
+       ~/Library/Logs/PixProFitText.log and the app offers Continue; 3.6.3
+       stopped with py2app's "Launch error" and the cause went to /dev/null.
+       Errors AppKit catches and survives are logged too (PyObjC verbose,
+       stderr into the log) — before, they left no trace at all.
+       The shape's name sits beside the Updates button instead of under it.
 3.4.0  The Info panel and the README say where a shape comes from.
        Both began at "select a shape layer", which is no help to
        anyone who has not got one: the Shapes browser, the Pen, or
@@ -432,13 +444,14 @@ and both the flowed and the plain path agree on it to within 0.3pt. The
 shape was too small for the text all along.
 """
 
-APP_VERSION = "3.6.3"
+APP_VERSION = "3.6.4"
 COPYRIGHT = "© 2026 Tim McCoy"
 
 import os
 import sys
 import threading
 import time
+import traceback
 
 import objc
 from AppKit import (NSApplication, NSApp, NSBackingStoreBuffered, NSBezierPath,
@@ -1113,7 +1126,19 @@ class Controller(NSObject):
 
         self.status = _label("", 12, 50, 560)
         panel.addSubview_(self.status)
-        self.shape_label = _label("", 180, 24, 176)
+        # Beside the Updates button, not under it: at x 180 the label ran
+        # beneath Updates (178..298) and only its tail showed. Two short
+        # lines fit the gap before Reread shape; the full text is the tooltip.
+        self.shape_label = PassthroughLabel.alloc().initWithFrame_(
+            NSMakeRect(276, 14, 80, 32))
+        self.shape_label.setEditable_(False)
+        self.shape_label.setSelectable_(False)
+        self.shape_label.setBordered_(False)
+        self.shape_label.setDrawsBackground_(False)
+        self.shape_label.setFont_(NSFont.systemFontOfSize_(10))
+        self.shape_label.setMaximumNumberOfLines_(2)
+        self.shape_label.cell().setWraps_(True)
+        self.shape_label.cell().setTruncatesLastVisibleLine_(True)
         self.shape_label.setTextColor_(NSColor.secondaryLabelColor())
         panel.addSubview_(self.shape_label)
 
@@ -1152,7 +1177,7 @@ class Controller(NSObject):
         panel.addSubview_(info_button)
 
         update_button = FirstMouseButton.alloc().initWithFrame_(
-            NSMakeRect(178, 16, 120, 30))
+            NSMakeRect(178, 16, 94, 30))
         update_button.setTitle_("Updates\u2026")
         update_button.setBezelStyle_(1)
         update_button.setTarget_(self)
@@ -1217,7 +1242,9 @@ class Controller(NSObject):
                 self.setMargin_(margin_for(self.shape))
             doc, width, height = bridge.document_info(self.bundle)
             self.shape_label.setStringValue_(
-                'shape "%s" in %s  (%d x %d)' % (name, doc, width, height))
+                '"%s"\n%d x %d' % (name, width, height))
+            self.shape_label.setToolTip_(
+                'Shape "%s" in %s  (%d x %d)' % (name, doc, width, height))
             self.calibration = None          # font/text metrics must be redone
             self.refit_(None)
         except bridge.PixmatorError as exc:
@@ -1841,14 +1868,72 @@ def build_menu(app):
     app.setMainMenu_(main)
 
 
+def log_exception(where, exc_type, exc, tb):
+    """Write a full traceback to the app's log. The app's stderr is
+    /dev/null, so anything printed there is lost for good — 3.6.3 died with
+    py2app's "Launch error" and no trace of why."""
+    note("ERROR in %s:\n%s" % (where, "".join(
+        traceback.format_exception(exc_type, exc, tb)).rstrip()))
+
+
+def _thread_excepthook(args):
+    log_exception("thread %s" % getattr(args.thread, "name", "?"),
+                  args.exc_type, args.exc_value, args.exc_traceback)
+
+
+def unexpected_error_alert():
+    """Called by AppHelper.runEventLoop when an error escapes an event:
+    log it, say so, and keep going unless the user chooses to quit. Before
+    this, the same error ended the app."""
+    exc_type, exc, tb = sys.exc_info()
+    log_exception("event loop", exc_type, exc, tb)
+    alert = NSAlert.alloc().init()
+    alert.setMessageText_("Something went wrong")
+    alert.setInformativeText_(
+        "%s\n\nThe details are in ~/Library/Logs/PixProFitText.log. "
+        "You can keep working." % "".join(
+            traceback.format_exception_only(exc_type, exc)).strip())
+    alert.addButtonWithTitle_("Continue")
+    alert.addButtonWithTitle_("Quit")
+    return alert.runModal() == 1000          # NSAlertFirstButtonReturn
+
+
+def capture_stderr():
+    """Send error output to the log when there is nowhere else for it.
+
+    In the app bundle stderr is /dev/null. Most errors in a button's action
+    never reach Python again: AppKit catches them and carries on, so the
+    only trace is what PyObjC prints on the way out — and that went
+    nowhere. objc.options.verbose makes PyObjC print the full traceback of
+    every error that crosses into Objective-C; with stderr pointed at the
+    log, each one is kept. Run from a terminal, stderr is left alone.
+    """
+    if not getattr(sys, "frozen", None):
+        return
+    try:
+        fh = open(LOG_PATH, "a", encoding="utf-8", buffering=1)
+    except OSError:
+        return
+    # Python's stderr only. Pointing fd 2 here as well filled the log with
+    # macOS's own chatter (CGPDFDocument teardown, line after line).
+    sys.stderr = fh
+    objc.options.verbose = True
+    note("started %s (errors are written here)" % APP_VERSION)
+
+
 def main():
+    capture_stderr()
+    sys.excepthook = lambda t, e, tb: log_exception("main", t, e, tb)
+    threading.excepthook = _thread_excepthook
     app = NSApplication.sharedApplication()
     app.setActivationPolicy_(0)
     build_menu(app)
     controller = Controller.alloc().init()
     app.setDelegate_(controller)
     app.activateIgnoringOtherApps_(True)
-    app.run()
+    # runEventLoop, not app.run(): an error that escapes an event is caught,
+    # logged and offered Continue, instead of ending the app.
+    AppHelper.runEventLoop(unexpectedErrorAlert=unexpected_error_alert)
 
 
 if __name__ == "__main__":

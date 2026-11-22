@@ -40,8 +40,18 @@ INSIDE = 128            # alpha at or above this counts as inside the shape
 ALIGNMENTS = {"left": 0, "center": 1, "right": 2}
 
 
+# The largest text image worth drawing: 100 million pixels, 400 MB of RGBA.
+# The fit's search starts as high as the shape is tall — 1080 pt for a
+# 1080-pixel shape — and 30 lines of text at that size is an image of
+# billions of pixels. Past 2 GB the bitmap's byte count overflows and numpy
+# raised "buffer is smaller than requested size", which in 3.6.3 ended the
+# app at launch. Text that big cannot fit any shape anyway.
+MAX_TEXT_PIXELS = 100 * 1000 * 1000
+
+
 def text_mask(text, font_name, size, angle=0.0, line_spacing=1.0,
-              calibration=None, wrap_width=None, align="center"):
+              calibration=None, wrap_width=None, align="center",
+              max_pixels=MAX_TEXT_PIXELS):
     """Render `text` and return a tight boolean mask of its ink.
 
     Rendered through AppKit rather than a bitmap font library so the glyphs,
@@ -91,6 +101,8 @@ def text_mask(text, font_name, size, angle=0.0, line_spacing=1.0,
     height = int(math.ceil(bounds.height)) + 4
     if width < 2 or height < 2:
         return np.zeros((1, 1), dtype=bool)
+    if width * height > max_pixels:
+        return too_big()
 
     rep = NSBitmapImageRep.alloc().\
         initWithBitmapDataPlanes_pixelsWide_pixelsHigh_bitsPerSample_samplesPerPixel_hasAlpha_isPlanar_colorSpaceName_bytesPerRow_bitsPerPixel_(
@@ -203,6 +215,13 @@ def crop_with_offset(mask):
     x0, x1 = int(xs.min()), int(xs.max())
     return Rendered(mask[y0:y1 + 1, x0:x1 + 1], x0, y0,
                     mask.shape[1], mask.shape[0])
+
+
+def too_big():
+    """Stands in for text too large to draw: one row of ink wider than any
+    canvas, so every placement test answers "does not fit"."""
+    wide = 1 << 20
+    return Rendered(np.ones((1, wide), dtype=bool), 0, 0, wide, 1)
 
 
 # ---------------------------------------------------------------------------
@@ -518,6 +537,13 @@ def fit_text(shape, text, font_name, angle=0.0, padding=0,
         max_size = float(bounds[3] - bounds[1] + 1)
 
     prefer = centroid(shape)
+    # Rotating a block never shrinks the box around it, so text whose
+    # unrotated box is far bigger than the shape's cannot fit — skip
+    # drawing it. Twice the area, because the layout box carries line
+    # padding the ink does not. On a 1220-pixel circle this took a fit
+    # from about 20 seconds to a few.
+    limit = min(MAX_TEXT_PIXELS,
+                2 * (bounds[2] - bounds[0] + 1) * (bounds[3] - bounds[1] + 1))
 
     widths = [None]
     if wrap:
@@ -534,7 +560,8 @@ def fit_text(shape, text, font_name, angle=0.0, padding=0,
         position is shifted back by the margin so it describes the ink.
         """
         rendered = text_mask(text, font_name, size, angle, line_spacing,
-                             calibration, wrap_width, align=align)
+                             calibration, wrap_width, align=align,
+                             max_pixels=limit)
         grown = dilate(rendered.mask, padding) if padding else rendered.mask
         spot = best_placement(shape, grown, prefer)
         if spot is not None:
