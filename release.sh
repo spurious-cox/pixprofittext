@@ -125,7 +125,7 @@ if [[ -f "$CASK" ]]; then
         -e "s/^  sha256 \".*\"/  sha256 \"$SHA\"/" "$CASK"
     echo "    $CASK -> $VERSION"
     echo "    sha256 $SHA"
-    if brew style --cask "$CASK" >/dev/null 2>&1; then
+    if brew style --cask spurious-cox/tap/pixprofittext >/dev/null 2>&1; then
         echo "    style: ok — commit and push the tap to publish it"
     else
         echo "    style: FAILED — check $CASK by hand" >&2
